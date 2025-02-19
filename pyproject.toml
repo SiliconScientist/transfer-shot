@@ -11,6 +11,9 @@ classifiers = [
 ]
 license = { text = "MIT" }
 dependencies = [
+    "datawrangler>=0.2",
+    "ipykernel>=6.29.5",
+    "polars>=1.8.2",
     "pydantic>=2.10.6",
     "ruff>=0.9.6",
     "toml>=0.10.2",

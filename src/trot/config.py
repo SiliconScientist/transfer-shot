@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 class Paths(BaseModel):
     raw: Path
+    processed: Path
 
 
 class Config(BaseModel):

@@ -175,6 +175,13 @@ uv.lock
 
 # Configuration file
 config.toml
+pretrained.toml
 
 # Data directory
 data/
+
+# log.ipynb
+log.ipynb
+
+# Environment setup
+env_setup.sh
