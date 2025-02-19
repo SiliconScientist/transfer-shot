@@ -175,3 +175,6 @@ uv.lock
 
 # Configuration file
 config.toml
+
+# Data directory
+data/
