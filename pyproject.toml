@@ -1,0 +1,24 @@
+[project]
+name = "trot"
+version = "0.0.1"
+authors = [{ name = "Avery Hill", email = "ahill15@tulane.edu" }]
+description = "A repository dedicated to zero-shot/few-shot methods to overcome the limitations of small datasets"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = { text = "MIT" }
+dependencies = [
+    "pydantic>=2.10.6",
+    "ruff>=0.9.6",
+    "toml>=0.10.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/SiliconScientist/transfer-shot.git"
+Issues = "https://github.com/SiliconScientist/transfer-shot/issues"
+
+[tool.setuptools]
+license-files = ["LICEN[CS]E*"]
