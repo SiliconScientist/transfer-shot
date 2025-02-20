@@ -1,18 +1,13 @@
 import toml
-import os
+
 from trot.config import Config
-from trot.processing import process_data
-from fairchem.core.datasets import LmdbDataset
+from trot.dataset import get_dataloader
 
 
 def main():
     cfg = Config(**toml.load("config.toml"))
-    if os.path.exists(cfg.paths.processed):
-        dataset = LmdbDataset({"src": str(cfg.paths.processed)})
-    else:
-        process_data(cfg)
-        dataset = LmdbDataset({"src": str(cfg.paths.processed)})
-    print(dataset)
+    loader = get_dataloader(cfg)
+    print(loader)
 
 
 if __name__ == "__main__":
