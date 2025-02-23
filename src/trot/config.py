@@ -9,12 +9,7 @@ class Raw(BaseModel):
 
 
 class Processed(BaseModel):
-    graphs: Path
-    extxyz: Path
-
-
-class DataLoader(BaseModel):
-    batch_size: int
+    predictions: Path
 
 
 class Paths(BaseModel):
@@ -23,6 +18,4 @@ class Paths(BaseModel):
 
 
 class Config(BaseModel):
-    random_seed: int
-    loader: DataLoader
     paths: Paths
