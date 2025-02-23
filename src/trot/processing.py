@@ -1,9 +1,15 @@
+import polars as pl
 from ase.db import connect
 from ase.atoms import Atoms
-from ase.calculators.singlepoint import SinglePointCalculator
 from pathlib import Path
 
 from trot.config import Config
+from trot.model import get_calculator, set_calculators
+
+MODEL_NAMES = [
+    "DimeNet++-S2EF-OC20-All",
+    "SchNet-S2EF-OC20-All",
+]
 
 H2_GAS_PHASE_ENERGY: float = -6.74815624  # eV
 
@@ -63,3 +69,25 @@ def process_data(cfg: Config) -> tuple[list[float], list[Atoms]]:
         adsorbate=H2_GAS_PHASE_ENERGY / 2,
     )
     return energies, adsorbed
+
+
+def write_predictions(cfg: Config) -> pl.DataFrame:
+    adsorption_energies = {}
+    energies, atoms_list = process_data(cfg)
+    adsorption_energies["DFT"] = energies
+    for name in MODEL_NAMES:
+        calc = get_calculator(name)
+        atoms_list = set_calculators(atoms_list, calc)
+        energies = [atoms.get_potential_energy() for atoms in atoms_list]
+        adsorption_energies[name] = energies
+    df = pl.DataFrame(adsorption_energies)
+    df.write_parquet(cfg.paths.processed.predictions)
+
+
+def get_data(cfg: Config) -> pl.DataFrame:
+    if cfg.paths.processed.predictions.exists():
+        df = pl.read_parquet(cfg.paths.processed.predictions)
+    else:
+        write_predictions(cfg)
+        df = pl.read_parquet(cfg.paths.processed.predictions)
+    return df
