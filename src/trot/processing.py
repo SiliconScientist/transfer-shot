@@ -9,6 +9,9 @@ from trot.model import get_calculator, set_calculators
 MODEL_NAMES = [
     "DimeNet++-S2EF-OC20-All",
     "SchNet-S2EF-OC20-All",
+    "PaiNN-S2EF-OC20-All",
+    "SCN-S2EF-OC20-All+MD",
+    "GemNet-dT-S2EF-OC20-All",
 ]
 
 H2_GAS_PHASE_ENERGY: float = -6.74815624  # eV
@@ -76,9 +79,9 @@ def write_predictions(cfg: Config) -> pl.DataFrame:
     energies, atoms_list = process_data(cfg)
     adsorption_energies["DFT"] = energies
     for name in MODEL_NAMES:
-        calc = get_calculator(name)
-        atoms_list = set_calculators(atoms_list, calc)
-        energies = [atoms.get_potential_energy() for atoms in atoms_list]
+        calc = get_calculator(cfg=cfg, name=name)
+        atoms_list_copy = set_calculators(atoms_list, calc)
+        energies = [atoms.get_potential_energy() for atoms in atoms_list_copy]
         adsorption_energies[name] = energies
     df = pl.DataFrame(adsorption_energies)
     df.write_parquet(cfg.paths.processed.predictions)
