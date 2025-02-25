@@ -16,6 +16,7 @@ class Results(BaseModel):
     parity_plot: Path
     iter_avg: Path
     bar_plot: Path
+    hist_plot: Path
 
 
 class Paths(BaseModel):
