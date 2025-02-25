@@ -12,9 +12,16 @@ class Processed(BaseModel):
     predictions: Path
 
 
+class Results(BaseModel):
+    parity_plot: Path
+    iter_avg: Path
+    bar_plot: Path
+
+
 class Paths(BaseModel):
     raw: Raw
     processed: Processed
+    results: Results
 
 
 class Config(BaseModel):

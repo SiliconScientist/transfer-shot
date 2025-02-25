@@ -185,3 +185,6 @@ log.ipynb
 
 # Environment setup
 env_setup.sh
+
+# .DS_Store files
+.DS_Store
