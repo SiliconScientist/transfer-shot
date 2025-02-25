@@ -1,3 +1,4 @@
+import re
 import polars as pl
 from ase.db import connect
 from ase.atoms import Atoms
@@ -74,6 +75,11 @@ def process_data(cfg: Config) -> tuple[list[float], list[Atoms]]:
     return energies, adsorbed
 
 
+def clean_column_name(name):
+    match = re.match(r"^([A-Za-z0-9]+)", name)
+    return match.group(1).upper() if match else name
+
+
 def write_predictions(cfg: Config) -> pl.DataFrame:
     adsorption_energies = {}
     energies, atoms_list = process_data(cfg)
@@ -84,6 +90,7 @@ def write_predictions(cfg: Config) -> pl.DataFrame:
         energies = [atoms.get_potential_energy() for atoms in atoms_list_copy]
         adsorption_energies[name] = energies
     df = pl.DataFrame(adsorption_energies)
+    df = df.rename({col: clean_column_name(col) for col in df.columns})
     df.write_parquet(cfg.paths.processed.predictions)
 
 

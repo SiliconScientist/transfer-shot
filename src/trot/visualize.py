@@ -7,11 +7,6 @@ import re
 from trot.config import Config
 
 
-def clean_column_name(name):
-    match = re.match(r"^([A-Za-z0-9]+)", name)
-    return match.group(1).upper() if match else name
-
-
 def make_multiclass_parity_plot(
     cfg: Config,
     df: pl.DataFrame,
