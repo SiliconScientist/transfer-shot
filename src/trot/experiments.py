@@ -1,4 +1,6 @@
 import polars as pl
+import numpy as np
+from sklearn.linear_model import LinearRegression
 
 from trot.config import Config
 from trot.evaluate import get_mse
@@ -78,3 +80,49 @@ def iterative_averages(
     )
     df_y_avg = df_avgs.hstack(df_y)
     make_parity_plot(cfg=cfg, df=df_y_avg, y_col=y_col)
+
+
+def one_shot(
+    cfg: Config,
+    holdout_index: int,
+    df: pl.DataFrame,
+    avg_alias: str,
+    y_col: str,
+) -> None:
+    holdout_slice = df.slice(holdout_index, holdout_index + 1)[y_col][0]
+    holdout = np.array([[holdout_slice]])
+    df = df.slice(1, df.height - 1)
+    df_avg = get_avg_std(
+        df=df,
+        avg_alias="average",
+        std_alias="std",
+    ).drop("std")
+    df_y = df.select(y_col)
+    df_y_avg = df_y.hstack(df_avg)
+    X = df_y_avg[y_col].to_numpy().reshape(-1, 1)
+    y = df_y_avg[avg_alias].to_numpy()
+    model = LinearRegression()
+    model.fit(X=X, y=y)
+    difference = holdout - model.predict(holdout)
+    model.intercept_ += difference
+    model.intercept_ = float(model.intercept_)
+    min_val = float(min(min(X), min(y)))
+    max_val = float(max(max(X), max(X)))
+    parity_line = np.linspace(min_val, max_val, 100).reshape(-1, 1)
+    y_avg = model.predict(parity_line)
+    make_parity_plot(
+        cfg=cfg,
+        model=model,
+        parity_line=parity_line,
+        x_axis=X,
+        y_axis=y_avg,
+        x_label=avg_alias,
+        y_label=y_col,
+        title=f"Parity Plot with sample {holdout_index} holdout",
+    )
+
+
+def two_shot(
+    holdout_indices: list,
+) -> None:
+    pass

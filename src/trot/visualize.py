@@ -12,7 +12,7 @@ def clean_column_name(name):
     return match.group(1).upper() if match else name
 
 
-def make_parity_plot(
+def make_multiclass_parity_plot(
     cfg: Config,
     df: pl.DataFrame,
     y_col: str,
@@ -36,8 +36,32 @@ def make_parity_plot(
     plt.savefig(cfg.paths.results.parity_plot, bbox_inches="tight")
 
 
+def make_parity_plot(
+    cfg: Config,
+    model,
+    parity_line: np.ndarray,
+    x_axis: list,
+    y_axis: list,
+    x_label: str,
+    y_label: str,
+    title: str,
+):
+    plt.plot(parity_line, parity_line, color="black", linewidth=2, linestyle="--")
+    plt.plot(parity_line, y_axis, color="red", linewidth=2)
+    plt.legend(title="Experts")
+    plt.title(label=title, fontsize=20)
+    plt.xlabel(xlabel=x_label, fontsize=16)
+    plt.ylabel(ylabel=y_label, fontsize=16, rotation=0, labelpad=36)
+    plt.savefig(cfg.paths.results.parity_plot, bbox_inches="tight")
+
+
 def make_bar_plot(
-    cfg: Config, x_axis: list, y_axis: list, x_label: str, y_label: str, title: str
+    cfg: Config,
+    x_axis: list,
+    y_axis: list,
+    x_label: str,
+    y_label: str,
+    title: str,
 ):
     plt.figure(figsize=(8, 5))
     plt.bar(x_axis, y_axis)
