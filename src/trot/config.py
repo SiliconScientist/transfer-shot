@@ -13,7 +13,8 @@ class Processed(BaseModel):
 
 
 class Results(BaseModel):
-    parity_plot: Path
+    adjusted_parity_plot: Path
+    iter_avg_parity_plot: Path
     iter_avg: Path
     bar_plot: Path
     hist_plot: Path

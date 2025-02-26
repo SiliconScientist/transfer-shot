@@ -3,8 +3,13 @@ import numpy as np
 from sklearn.linear_model import LinearRegression
 
 from trot.config import Config
-from trot.evaluate import df_mse, ndarray_mse
-from trot.visualize import make_bar_plot, make_parity_plot, make_histogram_plot
+from trot.evaluate import df_rmse, ndarray_rmse
+from trot.visualize import (
+    make_bar_plot,
+    make_parity_plot,
+    make_histogram_plot,
+    make_multiclass_parity_plot,
+)
 
 
 def get_avg_std(
@@ -68,18 +73,18 @@ def iterative_averages(
             std_alias=std_alias,
         )
         df_y_avg = df_avg_std.hstack(df_y)
-        mse = df_mse(df=df_y_avg, y_col=y_col, pred_col=avg_alias)
+        mse = df_rmse(df=df_y_avg, y_col=y_col, pred_col=avg_alias)
         mse_list.append(mse)
     make_bar_plot(
         cfg=cfg,
         x_axis=range(iterations),
         y_axis=mse_list,
         x_label="Iterations",
-        y_label=r"MSE (eV$^{2}$)",
-        title=f"MSE vs Iterations with std_factor = {std_factor}",
+        y_label="RMSE (eV)",
+        title=f"RMSE vs Iterations with std_factor = {std_factor}",
     )
     df_y_avg = df_avgs.hstack(df_y)
-    make_parity_plot(cfg=cfg, df=df_y_avg, y_col=y_col)
+    make_multiclass_parity_plot(cfg=cfg, df=df_y_avg, y_col=y_col)
 
 
 def split_df(
@@ -97,15 +102,14 @@ def get_dataframe_output(
     df_y: pl.DataFrame, df_avg: pl.DataFrame, avg_alias: str, y_col: str
 ) -> tuple[np.ndarray, np.ndarray]:
     df_y_avg = df_y.hstack(df_avg)
-    X = df_y_avg[y_col].to_numpy().reshape(-1, 1)
-    y = df_y_avg[avg_alias].to_numpy()
+    X = df_y_avg[avg_alias].to_numpy().reshape(-1, 1)
+    y = df_y_avg[y_col].to_numpy()
     return X, y
 
 
 def adjust_intercept(model: LinearRegression, holdout: np.ndarray) -> LinearRegression:
-    difference = holdout - model.predict(holdout)
+    difference = float(holdout - model.predict(holdout))
     model.intercept_ += difference
-    model.intercept_ = float(model.intercept_)
     return model
 
 
@@ -118,6 +122,37 @@ def get_x_grid(
     return np.linspace(min_val, max_val, 100).reshape(-1, 1)
 
 
+def get_one_shot_data(
+    df: pl.DataFrame,
+    y_col: str,
+    avg_alias: str,
+    holdout_index: int,
+) -> float:
+    holdout, df_slice = split_df(df, holdout_index, y_col)
+    df_avg = get_avg_std(
+        df=df_slice,
+        avg_alias="average",
+        std_alias="std",
+    ).drop("std")
+    X, y = get_dataframe_output(
+        df_y=df_slice.select(y_col),
+        df_avg=df_avg,
+        avg_alias=avg_alias,
+        y_col=y_col,
+    )
+    return X, y, holdout
+
+
+def get_one_shot_model(
+    X: np.ndarray,
+    y: np.ndarray,
+    holdout: np.ndarray,
+) -> LinearRegression:
+    model = LinearRegression().fit(X, y)
+    model = adjust_intercept(model, holdout)
+    return model
+
+
 def one_shot(
     cfg: Config,
     holdout_index: int,
@@ -125,32 +160,15 @@ def one_shot(
     avg_alias: str,
     y_col: str,
 ) -> None:
-    mse_list = []
-    for holdout_index in range(1, df.height):
-        holdout, df_slice = split_df(df, holdout_index, y_col)
-        df_avg = get_avg_std(
-            df=df_slice,
-            avg_alias="average",
-            std_alias="std",
-        ).drop("std")
-        X, y = get_dataframe_output(
-            df_y=df_slice.select(y_col),
-            df_avg=df_avg,
-            avg_alias=avg_alias,
-            y_col=y_col,
-        )
-        model = LinearRegression()
-        model.fit(X=X, y=y)
-        model = adjust_intercept(model, holdout)
-        y_pred = model.predict(X)
-        mse = ndarray_mse(y, y_pred)
-        mse_list.append(mse)
-    make_histogram_plot(
-        cfg=cfg,
-        data=mse_list,
-        x_label=r"MSE (eV$^{2}$)",
-        bins=6,
+    rmse_list = []
+    X, y, holdout = get_one_shot_data(
+        df=df,
+        y_col=y_col,
+        avg_alias=avg_alias,
+        holdout_index=holdout_index,
     )
+    model = get_one_shot_model(X=X, y=y, holdout=holdout)
+    y_pred = model.predict(X)
     x_grid = get_x_grid(X=X, y=y)
     make_parity_plot(
         cfg=cfg,
@@ -160,7 +178,23 @@ def one_shot(
         y_label=y_col,
         title=f"Parity Plot with sample {holdout_index} holdout",
     )
-    y_pred = model.predict(X)
+    for holdout_index in range(1, df.height):
+        X, y, holdout = get_one_shot_data(
+            df=df,
+            y_col=y_col,
+            avg_alias=avg_alias,
+            holdout_index=holdout_index,
+        )
+        model = get_one_shot_model(X=X, y=y, holdout=holdout)
+        y_pred = model.predict(X)
+        rmse = ndarray_rmse(y=y, y_pred=y_pred)
+        rmse_list.append(rmse)
+    make_histogram_plot(
+        cfg=cfg,
+        data=rmse_list,
+        x_label="RMSE (eV)",
+        bins=6,
+    )
 
 
 def two_shot(

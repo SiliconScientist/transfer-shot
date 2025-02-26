@@ -14,9 +14,9 @@ def make_multiclass_parity_plot(
 ) -> None:
     plt.figure()
     df = df.unpivot(index=[y_col]).with_columns(pl.col("variable"))
-    sns.lmplot(data=df, x=y_col, y="value", hue="variable", legend=False)
-    min_val = min(df[y_col].min(), df["value"].min())
-    max_val = max(df[y_col].max(), df[y_col].max())
+    sns.lmplot(data=df, x="value", y=y_col, hue="variable", legend=False)
+    min_val = min(df["value"].min(), df[y_col].min())
+    max_val = max(df["value"].max(), df["value"].max())
     plt.plot(
         [min_val, max_val],
         [min_val, max_val],
@@ -26,9 +26,9 @@ def make_multiclass_parity_plot(
     )
     plt.legend(title="Experts")
     plt.title(label="Parity Plot with std_factor = 1", fontsize=20)
-    plt.xlabel(xlabel=f"{y_col} ({units})", fontsize=16)
-    plt.ylabel(ylabel=f"ML ({units})", fontsize=16, rotation=0, labelpad=36)
-    plt.savefig(cfg.paths.results.parity_plot, bbox_inches="tight")
+    plt.xlabel(xlabel=f"ML ({units})", fontsize=16)
+    plt.ylabel(ylabel=f"{y_col} ({units})", fontsize=16, rotation=0, labelpad=36)
+    plt.savefig(cfg.paths.results.iter_avg_parity_plot, bbox_inches="tight")
     plt.close()
 
 
@@ -45,11 +45,10 @@ def make_parity_plot(
     plt.plot(x_axis, x_axis, color="black", linewidth=2, linestyle="--")
     # Model line
     plt.plot(x_axis, y_axis, color="red", linewidth=2)
-    plt.legend(title="Experts")
     plt.title(label=title, fontsize=20)
     plt.xlabel(xlabel=x_label, fontsize=16)
     plt.ylabel(ylabel=y_label, fontsize=16, rotation=0, labelpad=36)
-    plt.savefig(cfg.paths.results.parity_plot, bbox_inches="tight")
+    plt.savefig(cfg.paths.results.adjusted_parity_plot, bbox_inches="tight")
     plt.close()
 
 
