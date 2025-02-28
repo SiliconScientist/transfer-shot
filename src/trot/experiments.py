@@ -1,3 +1,4 @@
+import itertools
 import polars as pl
 import numpy as np
 from sklearn.linear_model import LinearRegression
@@ -90,10 +91,10 @@ def iterative_averages(
 
 def split_df(
     df: pl.DataFrame,
-    holdout_index: int,
+    holdout_indices: list[int],
 ) -> tuple[pl.DataFrame, pl.DataFrame]:
-    holdout_slice = df.slice(holdout_index, 1)
-    df_slice = df.filter(pl.arange(0, df.height) != holdout_index)
+    holdout_slice = df.filter(pl.arange(0, df.height).is_in(holdout_indices))
+    df_slice = df.filter(~pl.arange(0, df.height).is_in(holdout_indices))
     return holdout_slice, df_slice
 
 
@@ -188,11 +189,7 @@ def get_few_shot_data(
     holdout_indices: list,
 ) -> tuple[np.ndarray, np.ndarray]:
     holdout_slice, df_slice = split_df(df=df_y_avg, holdout_indices=holdout_indices)
-    X, y = get_dataframe_output(
-        df_y_avg=df_slice,
-        avg_alias=avg_alias,
-        y_col=y_col,
-    )
+    X, y = get_dataframe_output(df_y_avg=df_slice, avg_alias=avg_alias, y_col=y_col)
     X_holdout, y_holdout = get_dataframe_output(
         df_y_avg=holdout_slice, avg_alias=avg_alias, y_col=y_col
     )
@@ -201,7 +198,7 @@ def get_few_shot_data(
     return X, y
 
 
-def two_shot(
+def few_shot(
     cfg: Config,
     df_y_avg: pl.DataFrame,
     y_col: str,
@@ -221,5 +218,24 @@ def two_shot(
         y_axis=y,
         x_label=avg_alias,
         y_label=y_col,
-        title=f"Parity Plot with {len(holdout_indices)} holdouts",
+        title=f"Parity Plot with {holdout_indices} holdouts",
+        inset=rmse,
+    )
+    rmse_list = []
+    for holdout_indices in itertools.combinations(
+        range(1, df_y_avg.height), len(holdout_indices)
+    ):
+        X, y = get_few_shot_data(
+            df_y_avg=df_y_avg,
+            y_col=y_col,
+            avg_alias=avg_alias,
+            holdout_indices=holdout_indices,
+        )
+        rmse = get_rmse(y=y, y_pred=X)
+        rmse_list.append(rmse)
+    make_histogram_plot(
+        cfg=cfg,
+        data=rmse_list,
+        x_label="RMSE (eV)",
+        bins=6,
     )

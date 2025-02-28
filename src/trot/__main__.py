@@ -4,7 +4,7 @@ import polars as pl
 
 from trot.config import Config
 from trot.processing import get_data
-from trot.experiments import one_shot, get_avg_std
+from trot.experiments import few_shot, get_avg_std
 
 
 def main():
@@ -18,10 +18,10 @@ def main():
         std_alias="std",
     ).drop("std")
     df_y_avg = df_avg.with_columns(df.select(y_col))
-    one_shot(
+    few_shot(
         cfg=cfg,
         df_y_avg=df_y_avg,
-        holdout_index=15,
+        holdout_indices=[15, 21],
         avg_alias="average",
         y_col="DFT",
     )
