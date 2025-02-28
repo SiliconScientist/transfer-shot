@@ -84,7 +84,7 @@ def make_histogram_plot(
     plt.figure()
     plt.hist(x=data, bins=bins, edgecolor="black", alpha=0.7)
     plt.xlabel(xlabel=x_label, fontsize=16)
-    plt.ylabel("Freqency", fontsize=16, rotation=0, labelpad=36)
+    plt.ylabel("Frequency", fontsize=16, rotation=0, labelpad=40)
     plt.title(label=f"Histogram: Bins = {bins}")
     plt.savefig(cfg.paths.results.hist_plot, bbox_inches="tight")
     plt.close()

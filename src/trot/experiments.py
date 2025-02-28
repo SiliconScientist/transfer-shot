@@ -131,7 +131,7 @@ def get_one_shot_data(
         holdout_slice.select(y_col).item() - holdout_slice.select(avg_alias).item()
     )
     X, y = get_dataframe_output(
-        df_y_avg=df_y_avg,
+        df_y_avg=df_slice,
         avg_alias=avg_alias,
         y_col=y_col,
     )
