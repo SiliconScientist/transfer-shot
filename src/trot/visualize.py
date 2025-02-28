@@ -40,6 +40,7 @@ def make_parity_plot(
     x_label: str,
     y_label: str,
     title: str,
+    inset: float,
 ):
     plt.figure()
     # Plot parity line
@@ -50,6 +51,14 @@ def make_parity_plot(
     plt.plot(x_grid, model.predict(x_grid), color="blue", linewidth=2)
     plt.scatter(x_axis, y_axis, color="blue", alpha=0.7)
     plt.title(label=title, fontsize=20)
+    plt.text(
+        x=max(x_axis),
+        y=min(y_axis),
+        s=f"RMSE: {inset:.3f}",
+        fontsize=16,
+        color="black",
+        ha="right",
+    )
     plt.xlabel(xlabel=x_label, fontsize=16)
     plt.ylabel(ylabel=y_label, fontsize=16, rotation=0, labelpad=36)
     plt.savefig(cfg.paths.results.adjusted_parity_plot, bbox_inches="tight")

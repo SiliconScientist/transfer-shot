@@ -153,7 +153,6 @@ def one_shot(
         holdout_index=holdout_index,
     )
     rmse = get_rmse(y=y, y_pred=X)
-    print(f"RMSE for holdout {holdout_index}: {rmse}")
     make_parity_plot(
         cfg=cfg,
         x_axis=X,
@@ -161,6 +160,7 @@ def one_shot(
         x_label=avg_alias,
         y_label=y_col,
         title=f"Parity Plot with sample {holdout_index} holdout",
+        inset=rmse,
     )
 
     rmse_list = []
@@ -181,7 +181,45 @@ def one_shot(
     )
 
 
+def get_few_shot_data(
+    df_y_avg: pl.DataFrame,
+    y_col: str,
+    avg_alias: str,
+    holdout_indices: list,
+) -> tuple[np.ndarray, np.ndarray]:
+    holdout_slice, df_slice = split_df(df=df_y_avg, holdout_indices=holdout_indices)
+    X, y = get_dataframe_output(
+        df_y_avg=df_slice,
+        avg_alias=avg_alias,
+        y_col=y_col,
+    )
+    X_holdout, y_holdout = get_dataframe_output(
+        df_y_avg=holdout_slice, avg_alias=avg_alias, y_col=y_col
+    )
+    model = LinearRegression().fit(X_holdout, y_holdout)
+    X = model.coef_ * X + model.intercept_
+    return X, y
+
+
 def two_shot(
+    cfg: Config,
+    df_y_avg: pl.DataFrame,
+    y_col: str,
+    avg_alias: str,
     holdout_indices: list,
 ) -> None:
-    pass
+    X, y = get_few_shot_data(
+        df_y_avg=df_y_avg,
+        y_col=y_col,
+        avg_alias=avg_alias,
+        holdout_indices=holdout_indices,
+    )
+    rmse = get_rmse(y=y, y_pred=X)
+    make_parity_plot(
+        cfg=cfg,
+        x_axis=X,
+        y_axis=y,
+        x_label=avg_alias,
+        y_label=y_col,
+        title=f"Parity Plot with {len(holdout_indices)} holdouts",
+    )
