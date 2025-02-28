@@ -21,9 +21,10 @@ def main():
     few_shot(
         cfg=cfg,
         df_y_avg=df_y_avg,
-        holdout_indices=[15, 21],
+        holdout_indices=[5, 17],
         avg_alias="average",
         y_col="DFT",
+        linearize=True,
     )
 
 

@@ -121,15 +121,16 @@ def get_x_grid(
     return np.linspace(min_val, max_val, 100).reshape(-1, 1)
 
 
-def get_one_shot_data(
+def shift_data(
     df_y_avg: pl.DataFrame,
     y_col: str,
     avg_alias: str,
-    holdout_index: int,
+    holdout_indices: list[int],
 ) -> tuple[np.ndarray, np.ndarray]:
-    holdout_slice, df_slice = split_df(df=df_y_avg, holdout_index=holdout_index)
+    holdout_slice, df_slice = split_df(df=df_y_avg, holdout_indices=holdout_indices)
+    holdout_means = holdout_slice.mean()
     difference = (
-        holdout_slice.select(y_col).item() - holdout_slice.select(avg_alias).item()
+        holdout_means.select(y_col).item() - holdout_means.select(avg_alias).item()
     )
     X, y = get_dataframe_output(
         df_y_avg=df_slice,
@@ -147,7 +148,7 @@ def one_shot(
     avg_alias: str,
     y_col: str,
 ) -> None:
-    X, y = get_one_shot_data(
+    X, y = shift_data(
         df_y_avg=df_y_avg,
         y_col=y_col,
         avg_alias=avg_alias,
@@ -166,7 +167,7 @@ def one_shot(
 
     rmse_list = []
     for holdout_index in range(1, df_y_avg.height):
-        X, y = get_one_shot_data(
+        X, y = shift_data(
             df_y_avg=df_y_avg,
             y_col=y_col,
             avg_alias=avg_alias,
@@ -182,11 +183,11 @@ def one_shot(
     )
 
 
-def get_few_shot_data(
+def linearize_data(
     df_y_avg: pl.DataFrame,
     y_col: str,
     avg_alias: str,
-    holdout_indices: list,
+    holdout_indices: list[int],
 ) -> tuple[np.ndarray, np.ndarray]:
     holdout_slice, df_slice = split_df(df=df_y_avg, holdout_indices=holdout_indices)
     X, y = get_dataframe_output(df_y_avg=df_slice, avg_alias=avg_alias, y_col=y_col)
@@ -204,13 +205,22 @@ def few_shot(
     y_col: str,
     avg_alias: str,
     holdout_indices: list,
+    linearize: bool = False,
 ) -> None:
-    X, y = get_few_shot_data(
-        df_y_avg=df_y_avg,
-        y_col=y_col,
-        avg_alias=avg_alias,
-        holdout_indices=holdout_indices,
-    )
+    if linearize:
+        X, y = linearize_data(
+            df_y_avg=df_y_avg,
+            y_col=y_col,
+            avg_alias=avg_alias,
+            holdout_indices=holdout_indices,
+        )
+    else:
+        X, y = shift_data(
+            df_y_avg=df_y_avg,
+            y_col=y_col,
+            avg_alias=avg_alias,
+            holdout_indices=holdout_indices,
+        )
     rmse = get_rmse(y=y, y_pred=X)
     make_parity_plot(
         cfg=cfg,
@@ -225,7 +235,7 @@ def few_shot(
     for holdout_indices in itertools.combinations(
         range(1, df_y_avg.height), len(holdout_indices)
     ):
-        X, y = get_few_shot_data(
+        X, y = shift_data(
             df_y_avg=df_y_avg,
             y_col=y_col,
             avg_alias=avg_alias,
