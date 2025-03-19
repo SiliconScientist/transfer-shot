@@ -2,8 +2,10 @@ import itertools
 import polars as pl
 import numpy as np
 from sklearn.linear_model import LinearRegression
+import torch
 
 from trot.config import Config
+from trot.coverage import get_binned_indices, get_fsc_metric
 from trot.evaluate import get_rmse
 from trot.visualize import (
     make_bar_plot,
@@ -61,15 +63,16 @@ def iterative_averages(
     for i in range(iterations):
         df_avg_std = get_avg_std(df_predictions, avg_alias, std_alias)
         df_avg = df_avg_std.drop(std_alias).rename({avg_alias: f"{avg_alias}_{i}"})
-        df_y_avg = df_avg.with_columns(df.select(y_col))
-        X, y = get_dataframe_output(
-            df_y_avg=df_y_avg,
-            avg_alias=f"{avg_alias}_{i}",
+        df_avgs = df_avgs.hstack(df_avg)
+        df_y_avg_std = df_avg_std.with_columns(df.select(y_col))
+        X, _, y = get_dataframe_output(
+            df_y_avg_std=df_y_avg_std,
+            avg_alias=avg_alias,
+            std_alias=std_alias,
             y_col=y_col,
         )
         rmse = get_rmse(y=y, y_pred=X)
         rmse_list.append(rmse)
-        df_avgs = df_avgs.hstack(df_avg)
         df_predictions = remove_outliers(
             df=df_predictions,
             df_avg_std=df_avg_std,
@@ -87,6 +90,29 @@ def iterative_averages(
     )
     df_y_avg = df_avgs.hstack(df.select(y_col))
     make_multiclass_parity_plot(cfg=cfg, df=df_y_avg, y_col=y_col)
+    X, std, y = get_dataframe_output(
+        df_y_avg_std=df_y_avg_std,
+        avg_alias=avg_alias,
+        std_alias=std_alias,
+        y_col=y_col,
+    )
+    lower = X - std
+    upper = X + std
+    bins = 6
+    binned_indices = get_binned_indices(data=X.squeeze(), bins=bins)
+    fsc = get_fsc_metric(binned_indices, y, lower, upper)
+    rmse = get_rmse(y=y, y_pred=X)
+    inset = f"RMSE: {rmse:.3f} \n FSC (bins={bins}): {fsc:.3f}"
+    make_parity_plot(
+        cfg=cfg,
+        x_axis=X,
+        y_axis=y,
+        yerr=std.squeeze(),
+        x_label=f"{avg_alias}_{iterations - 1}",
+        y_label=y_col,
+        title=f"Parity Plot with std_factor = {std_factor}",
+        inset=inset,
+    )
 
 
 def split_df(
@@ -99,11 +125,12 @@ def split_df(
 
 
 def get_dataframe_output(
-    df_y_avg: pl.DataFrame, avg_alias: str, y_col: str
+    df_y_avg_std: pl.DataFrame, avg_alias: str, std_alias: str, y_col: str
 ) -> tuple[np.ndarray, np.ndarray]:
-    X = df_y_avg[avg_alias].to_numpy().reshape(-1, 1)
-    y = df_y_avg[y_col].to_numpy()
-    return X, y
+    X = df_y_avg_std[avg_alias].to_numpy().reshape(-1, 1)
+    std = df_y_avg_std[std_alias].to_numpy().reshape(-1, 1)
+    y = df_y_avg_std[y_col].to_numpy()
+    return X, std, y
 
 
 def adjust_model(model: LinearRegression, holdout: np.ndarray) -> LinearRegression:
@@ -122,130 +149,169 @@ def get_x_grid(
 
 
 def shift_data(
-    df_y_avg: pl.DataFrame,
+    df_y_avg_std: pl.DataFrame,
     y_col: str,
     avg_alias: str,
+    std_alias: str,
     holdout_indices: list[int],
 ) -> tuple[np.ndarray, np.ndarray]:
-    holdout_slice, df_slice = split_df(df=df_y_avg, holdout_indices=holdout_indices)
+    holdout_slice, df_slice = split_df(df=df_y_avg_std, holdout_indices=holdout_indices)
     holdout_means = holdout_slice.mean()
     difference = (
         holdout_means.select(y_col).item() - holdout_means.select(avg_alias).item()
     )
-    X, y = get_dataframe_output(
-        df_y_avg=df_slice,
+    X, std, y = get_dataframe_output(
+        df_y_avg_std=df_slice,
         avg_alias=avg_alias,
+        std_alias=std_alias,
         y_col=y_col,
     )
     X = X + difference
-    return X, y
-
-
-def one_shot(
-    cfg: Config,
-    holdout_index: int,
-    df_y_avg: pl.DataFrame,
-    avg_alias: str,
-    y_col: str,
-) -> None:
-    X, y = shift_data(
-        df_y_avg=df_y_avg,
-        y_col=y_col,
-        avg_alias=avg_alias,
-        holdout_index=holdout_index,
-    )
-    rmse = get_rmse(y=y, y_pred=X)
-    make_parity_plot(
-        cfg=cfg,
-        x_axis=X,
-        y_axis=y,
-        x_label=avg_alias,
-        y_label=y_col,
-        title=f"Parity Plot with sample {holdout_index} holdout",
-        inset=rmse,
-    )
-
-    rmse_list = []
-    for holdout_index in range(1, df_y_avg.height):
-        X, y = shift_data(
-            df_y_avg=df_y_avg,
-            y_col=y_col,
-            avg_alias=avg_alias,
-            holdout_index=holdout_index,
-        )
-        rmse = get_rmse(y=y, y_pred=X)
-        rmse_list.append(rmse)
-    make_histogram_plot(
-        cfg=cfg,
-        data=rmse_list,
-        x_label="RMSE (eV)",
-        bins=6,
-    )
+    return X, std, y
 
 
 def linearize_data(
-    df_y_avg: pl.DataFrame,
+    df_y_avg_std: pl.DataFrame,
     y_col: str,
     avg_alias: str,
+    std_alias: str,
     holdout_indices: list[int],
 ) -> tuple[np.ndarray, np.ndarray]:
-    holdout_slice, df_slice = split_df(df=df_y_avg, holdout_indices=holdout_indices)
-    X, y = get_dataframe_output(df_y_avg=df_slice, avg_alias=avg_alias, y_col=y_col)
-    X_holdout, y_holdout = get_dataframe_output(
-        df_y_avg=holdout_slice, avg_alias=avg_alias, y_col=y_col
+    holdout_slice, df_slice = split_df(df=df_y_avg_std, holdout_indices=holdout_indices)
+    X, std, y = get_dataframe_output(
+        df_y_avg_std=df_slice, avg_alias=avg_alias, std_alias=std_alias, y_col=y_col
+    )
+    X_holdout, _, y_holdout = get_dataframe_output(
+        df_y_avg_std=holdout_slice,
+        avg_alias=avg_alias,
+        std_alias=std_alias,
+        y_col=y_col,
     )
     model = LinearRegression().fit(X_holdout, y_holdout)
     X = model.coef_ * X + model.intercept_
-    return X, y
+    return X, std, y
 
 
-def few_shot(
-    cfg: Config,
-    df_y_avg: pl.DataFrame,
+def modify_data(
+    linearize: bool,
+    holdout_indices: list[int],
+    df_y_avg_std: pl.DataFrame,
     y_col: str,
     avg_alias: str,
-    holdout_indices: list,
-    linearize: bool = False,
-) -> None:
+    std_alias: str,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     if linearize:
-        X, y = linearize_data(
-            df_y_avg=df_y_avg,
+        X, std, y = linearize_data(
+            df_y_avg_std=df_y_avg_std,
             y_col=y_col,
             avg_alias=avg_alias,
+            std_alias=std_alias,
             holdout_indices=holdout_indices,
         )
     else:
-        X, y = shift_data(
-            df_y_avg=df_y_avg,
+        X, std, y = shift_data(
+            df_y_avg_std=df_y_avg_std,
             y_col=y_col,
             avg_alias=avg_alias,
+            std_alias=std_alias,
             holdout_indices=holdout_indices,
         )
+    return X, std, y
+
+
+def vary_holdout_indices(
+    cfg: Config,
+    num_indices: int,
+    df_y_avg_std: pl.DataFrame,
+    y_col: str,
+    avg_alias: str,
+    std_alias: str,
+    linearize: bool = False,
+    bins: int = 6,
+) -> None:
+    rmse_list = []
+    for holdout_indices in itertools.combinations(
+        range(1, df_y_avg_std.height), num_indices
+    ):
+        X, _, y = modify_data(
+            linearize=linearize,
+            holdout_indices=holdout_indices,
+            df_y_avg_std=df_y_avg_std,
+            y_col=y_col,
+            avg_alias=avg_alias,
+            std_alias=std_alias,
+        )
+        rmse = get_rmse(y=y, y_pred=X)
+        rmse_list.append(rmse)
+    return rmse_list
+
+
+def n_shot(
+    cfg: Config,
+    df_y_avg_std: pl.DataFrame,
+    y_col: str,
+    avg_alias: str,
+    std_alias: str,
+    holdout_indices: int,
+    n: int = 5,
+    linearize: bool = False,
+) -> None:
+    X, std, y = modify_data(
+        linearize=linearize,
+        holdout_indices=holdout_indices,
+        df_y_avg_std=df_y_avg_std,
+        y_col=y_col,
+        avg_alias=avg_alias,
+        std_alias=std_alias,
+    )
+    lower = X - std
+    upper = X + std
+    bins = 6
+    binned_indices = get_binned_indices(data=X.squeeze(), bins=bins)
+    fsc = get_fsc_metric(binned_indices, y, lower, upper)
     rmse = get_rmse(y=y, y_pred=X)
+    inset = f"RMSE: {rmse:.3f} \n FSC (bins={bins}): {fsc:.3f}"
     make_parity_plot(
         cfg=cfg,
         x_axis=X,
         y_axis=y,
+        yerr=std.squeeze(),
         x_label=avg_alias,
         y_label=y_col,
         title=f"Parity Plot with {holdout_indices} holdouts",
-        inset=rmse,
+        inset=inset,
     )
-    rmse_list = []
-    for holdout_indices in itertools.combinations(
-        range(1, df_y_avg.height), len(holdout_indices)
-    ):
-        X, y = shift_data(
-            df_y_avg=df_y_avg,
+    if linearize:
+        index_sizes = range(2, n + 1)
+    else:
+        index_sizes = range(1, n + 1)
+    rmse_mean_list = []
+    for num_indices in index_sizes:
+        rmse_list = vary_holdout_indices(
+            cfg=cfg,
+            num_indices=num_indices,
+            df_y_avg_std=df_y_avg_std,
             y_col=y_col,
             avg_alias=avg_alias,
-            holdout_indices=holdout_indices,
+            std_alias=std_alias,
+            linearize=linearize,
         )
-        rmse = get_rmse(y=y, y_pred=X)
-        rmse_list.append(rmse)
-    make_histogram_plot(
+        rmse_mean = np.mean(rmse_list)
+        rmse_mean_list.append(rmse_mean)
+        make_histogram_plot(
+            cfg=cfg,
+            data=rmse_list,
+            mean=rmse_mean,
+            x_label="RMSE (eV)",
+            title=f"Histogram: Bins = {bins}; Holdouts = {num_indices}",
+            bins=bins,
+            file_tag=f"holdouts_{num_indices}",
+        )
+    make_bar_plot(
         cfg=cfg,
-        data=rmse_list,
-        x_label="RMSE (eV)",
-        bins=6,
+        x_axis=index_sizes,
+        y_axis=rmse_mean_list,
+        x_label="Number of holdouts",
+        y_label="Mean RMSE (eV)",
+        title="Mean RMSE vs Number of Holdouts",
     )

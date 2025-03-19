@@ -2,6 +2,7 @@ import re
 import polars as pl
 from ase.db import connect
 from ase.atoms import Atoms
+from ase.io import write
 from pathlib import Path
 
 from trot.config import Config
@@ -15,7 +16,11 @@ MODEL_NAMES = [
     "GemNet-dT-S2EF-OC20-All",
 ]
 
-H2_GAS_PHASE_ENERGY: float = -6.74815624  # eV
+# Units: eV
+GAS_PHASE_ENERGIES = {
+    "H2": -6.74815624,
+    "O2": -9.848396,
+}
 
 
 def get_atoms_list(raw_path: Path) -> list[Atoms]:
@@ -70,9 +75,19 @@ def process_data(cfg: Config) -> tuple[list[float], list[Atoms]]:
     energies = get_adsorption_energies(
         bare_surface=bare,
         adsorbed_surface=adsorbed,
-        adsorbate=H2_GAS_PHASE_ENERGY / 2,
+        adsorbate=GAS_PHASE_ENERGIES["O2"] / 2,
     )
     return energies, adsorbed
+
+
+def get_model_predictions(cfg: Config, atoms_list: list[Atoms]) -> pl.DataFrame:
+    adsorption_energies = {}
+    for name in MODEL_NAMES:
+        calc = get_calculator(cfg=cfg, name=name)
+        atoms_list_copy = set_calculators(atoms_list, calc)
+        energies = [atoms.get_potential_energy() for atoms in atoms_list_copy]
+        adsorption_energies[name] = energies
+    return pl.DataFrame(adsorption_energies)
 
 
 def clean_column_name(name):
@@ -80,17 +95,19 @@ def clean_column_name(name):
     return match.group(1).upper() if match else name
 
 
-def write_predictions(cfg: Config) -> pl.DataFrame:
-    adsorption_energies = {}
-    energies, atoms_list = process_data(cfg)
-    adsorption_energies["DFT"] = energies
-    for name in MODEL_NAMES:
-        calc = get_calculator(cfg=cfg, name=name)
-        atoms_list_copy = set_calculators(atoms_list, calc)
-        energies = [atoms.get_potential_energy() for atoms in atoms_list_copy]
-        adsorption_energies[name] = energies
-    df = pl.DataFrame(adsorption_energies)
+def build_df(
+    cfg: Config, atoms_list: list[Atoms], energies: list[float]
+) -> pl.DataFrame:
+    df_y = pl.DataFrame({"DFT": energies})
+    df_predictions = get_model_predictions(cfg, atoms_list)
+    df = pl.concat([df_y, df_predictions], how="horizontal")
     df = df.rename({col: clean_column_name(col) for col in df.columns})
+    return df
+
+
+def get_predictions(cfg: Config) -> pl.DataFrame:
+    energies, atoms_list = process_data(cfg)
+    df = build_df(cfg=cfg, atoms_list=atoms_list, energies=energies)
     df.write_parquet(cfg.paths.processed.predictions)
 
 
@@ -98,6 +115,6 @@ def get_data(cfg: Config) -> pl.DataFrame:
     if cfg.paths.processed.predictions.exists():
         df = pl.read_parquet(cfg.paths.processed.predictions)
     else:
-        write_predictions(cfg)
+        get_predictions(cfg)
         df = pl.read_parquet(cfg.paths.processed.predictions)
     return df

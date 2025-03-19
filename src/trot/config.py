@@ -13,11 +13,17 @@ class Processed(BaseModel):
 
 
 class Results(BaseModel):
-    adjusted_parity_plot: Path
-    iter_avg_parity_plot: Path
+    visualizations: Path
+    parity_plot: Path
+    multiclass_parity_plot: Path
     iter_avg: Path
     bar_plot: Path
     hist_plot: Path
+
+
+class Processing(BaseModel):
+    gas_phase_adsorbate: str
+    num_atoms_adsorbed: int
 
 
 class Paths(BaseModel):
@@ -29,3 +35,4 @@ class Paths(BaseModel):
 class Config(BaseModel):
     random_seed: int
     paths: Paths
+    processing: Processing
