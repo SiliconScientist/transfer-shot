@@ -220,14 +220,12 @@ def modify_data(
 
 
 def vary_holdout_indices(
-    cfg: Config,
     num_indices: int,
     df_y_avg_std: pl.DataFrame,
     y_col: str,
     avg_alias: str,
     std_alias: str,
     linearize: bool = False,
-    bins: int = 6,
 ) -> None:
     rmse_list = []
     for holdout_indices in itertools.combinations(
@@ -254,6 +252,7 @@ def n_shot(
     std_alias: str,
     holdout_indices: int,
     n: int = 5,
+    bins: int = 6,
     linearize: bool = False,
 ) -> None:
     X, std, y = modify_data(
@@ -266,7 +265,7 @@ def n_shot(
     )
     lower = X - std
     upper = X + std
-    bins = 6
+
     binned_indices = get_binned_indices(data=X.squeeze(), bins=bins)
     fsc = get_fsc_metric(binned_indices, y, lower, upper)
     rmse = get_rmse(y=y, y_pred=X)
@@ -288,7 +287,6 @@ def n_shot(
     rmse_mean_list = []
     for num_indices in index_sizes:
         rmse_list = vary_holdout_indices(
-            cfg=cfg,
             num_indices=num_indices,
             df_y_avg_std=df_y_avg_std,
             y_col=y_col,

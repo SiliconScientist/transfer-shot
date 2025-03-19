@@ -4,8 +4,7 @@ import polars as pl
 
 from trot.config import Config
 from trot.processing import get_data
-from trot.experiments import iterative_averages, n_shot, get_avg_std
-from trot.visualize import make_multiclass_parity_plot
+from trot.experiments import n_shot, get_avg_std
 
 
 def main():
@@ -24,7 +23,7 @@ def main():
     n_shot(
         cfg=cfg,
         df_y_avg_std=df_y_avg_std,
-        holdout_indices=[0, 5, 10, 15, 20],
+        holdout_indices=[15, 20],
         avg_alias="average",
         std_alias="std",
         y_col="DFT",
