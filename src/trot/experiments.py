@@ -2,11 +2,11 @@ import itertools
 import polars as pl
 import numpy as np
 from sklearn.linear_model import LinearRegression
-import torch
 
 from trot.config import Config
 from trot.coverage import get_binned_indices, get_fsc_metric
 from trot.evaluate import get_rmse
+from trot.processing import get_holdout_split
 from trot.visualize import (
     make_bar_plot,
     make_parity_plot,
@@ -26,28 +26,6 @@ def get_avg_std(
     return df_avg_std
 
 
-def remove_outliers(
-    df: pl.DataFrame,
-    df_avg_std: pl.DataFrame,
-    avg_alias: str,
-    std_alias: str,
-    std_factor: int = 1,
-) -> pl.DataFrame:
-    df_filtered = df.with_columns(
-        [
-            pl.when(
-                (df[col] - df_avg_std[avg_alias]).abs()
-                <= df_avg_std[std_alias] * std_factor
-            )
-            .then(df[col])
-            .otherwise(None)
-            .alias(col)
-            for col in df.columns
-        ]
-    )
-    return df_filtered
-
-
 def iterative_averages(
     cfg: Config,
     df: pl.DataFrame,
@@ -62,8 +40,13 @@ def iterative_averages(
     df_predictions = df.select(pl.exclude(y_col))
     for i in range(iterations):
         df_avg_std = get_avg_std(df_predictions, avg_alias, std_alias)
-        df_avg = df_avg_std.drop(std_alias).rename({avg_alias: f"{avg_alias}_{i}"})
-        df_avgs = df_avgs.hstack(df_avg)
+        df_predictions = remove_outliers(
+            df=df_predictions,
+            df_avg_std=df_avg_std,
+            std_factor=std_factor,
+            avg_alias=avg_alias,
+            std_alias=std_alias,
+        )
         df_y_avg_std = df_avg_std.with_columns(df.select(y_col))
         X, _, y = get_dataframe_output(
             df_y_avg_std=df_y_avg_std,
@@ -73,13 +56,8 @@ def iterative_averages(
         )
         rmse = get_rmse(y=y, y_pred=X)
         rmse_list.append(rmse)
-        df_predictions = remove_outliers(
-            df=df_predictions,
-            df_avg_std=df_avg_std,
-            std_factor=std_factor,
-            avg_alias=avg_alias,
-            std_alias=std_alias,
-        )
+        df_avg = df_avg_std.drop(std_alias).rename({avg_alias: f"{avg_alias}_{i}"})
+        df_avgs = df_avgs.hstack(df_avg)
     make_bar_plot(
         cfg=cfg,
         x_axis=range(iterations),
@@ -125,11 +103,11 @@ def split_df(
 
 
 def get_dataframe_output(
-    df_y_avg_std: pl.DataFrame, avg_alias: str, std_alias: str, y_col: str
+    df: pl.DataFrame, avg_alias: str, std_alias: str, y_col: str
 ) -> tuple[np.ndarray, np.ndarray]:
-    X = df_y_avg_std[avg_alias].to_numpy().reshape(-1, 1)
-    std = df_y_avg_std[std_alias].to_numpy().reshape(-1, 1)
-    y = df_y_avg_std[y_col].to_numpy()
+    X = df[avg_alias].to_numpy().reshape(-1, 1)
+    std = df[std_alias].to_numpy().reshape(-1, 1)
+    y = df[y_col].to_numpy()
     return X, std, y
 
 
@@ -193,30 +171,22 @@ def linearize_data(
 
 
 def modify_data(
+    X: np.ndarray,
+    y: np.ndarray,
+    X_holdout: np.ndarray,
+    y_holdout: np.ndarray,
     linearize: bool,
-    holdout_indices: list[int],
-    df_y_avg_std: pl.DataFrame,
-    y_col: str,
-    avg_alias: str,
-    std_alias: str,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     if linearize:
-        X, std, y = linearize_data(
-            df_y_avg_std=df_y_avg_std,
-            y_col=y_col,
-            avg_alias=avg_alias,
-            std_alias=std_alias,
-            holdout_indices=holdout_indices,
-        )
+        model = LinearRegression().fit(X_holdout, y_holdout)
+        X = model.coef_ * X + model.intercept_
+        return X, y
     else:
-        X, std, y = shift_data(
-            df_y_avg_std=df_y_avg_std,
-            y_col=y_col,
-            avg_alias=avg_alias,
-            std_alias=std_alias,
-            holdout_indices=holdout_indices,
-        )
-    return X, std, y
+        X_mean = X_holdout.mean()
+        y_mean = y_holdout.mean()
+        difference = y_mean - X_mean
+        X = X + difference
+        return X, y
 
 
 def vary_holdout_indices(
@@ -244,25 +214,106 @@ def vary_holdout_indices(
     return rmse_list
 
 
+def remove_outliers(X: np.ndarray, std_factor: float = 1.0) -> np.ndarray:
+    mean = np.nanmean(X, axis=1, keepdims=True)
+    std = np.nanstd(X, axis=1, keepdims=True)
+    mask = np.abs(X - mean) <= std * std_factor
+    X_filtered = np.where(mask, X, np.nan)
+    return X_filtered
+
+
 def n_shot(
     cfg: Config,
-    df_y_avg_std: pl.DataFrame,
-    y_col: str,
-    avg_alias: str,
-    std_alias: str,
-    holdout_indices: int,
-    n: int = 5,
+    df: pl.DataFrame,
+    max_samples: int = 5,
     bins: int = 6,
     linearize: bool = False,
 ) -> None:
-    X, std, y = modify_data(
-        linearize=linearize,
-        holdout_indices=holdout_indices,
-        df_y_avg_std=df_y_avg_std,
-        y_col=y_col,
+    for n in range(0, max_samples + 1):
+        for holdout_indices in itertools.combinations(range(1, df.height), n):
+            X, y, X_holdout, y_holdout = get_holdout_split(
+                df=df,
+                y_col=cfg.y_key,
+                holdout_indices=holdout_indices,
+            )
+            if n > 0:
+                X, y = modify_data(
+                    X=X,
+                    y=y,
+                    X_holdout=X_holdout,
+                    y_holdout=y_holdout,
+                    linearize=linearize,
+                )
+            for _ in range(cfg.removal_iterations):
+                X = remove_outliers(X, std_factor=1)
+            mean = np.nanmean(X, axis=1).reshape(-1, 1)
+            std = np.nanstd(X, axis=1)
+            make_parity_plot(
+                cfg=cfg,
+                x_axis=mean,
+                y_axis=y,
+                yerr=std,
+                x_label="Average energy (eV)",
+                y_label="DFT energy (eV)",
+                title=f"Parity Plot with {holdout_indices} holdouts",
+            )
+
+            lower = mean - std
+            upper = mean + std
+
+    X, y, X_holdout, y_holdout = get_holdout_split(
+        df=df, y_col=cfg.y_key, holdout_indices=[15, 20]
+    )
+    holdout_slice, df_slice = split_df(df=df, holdout_indices=holdout_indices)
+    df_avg_std = get_avg_std(df=holdout_slice, avg_alias=avg_alias, std_alias=std_alias)
+    df_y_avg_std = df_avg_std.with_columns(holdout_slice.select(y_col))
+    X_holdout, _, y_holdout = get_dataframe_output(
+        df=df_y_avg_std,
         avg_alias=avg_alias,
         std_alias=std_alias,
+        y_col=y_col,
     )
+    df_predictions = df_slice.select(pl.exclude(y_col))
+    for i in range(3):
+        df_avg_std = get_avg_std(df_predictions, avg_alias, std_alias)
+        df_predictions = remove_outliers(
+            df=df_predictions,
+            df_avg_std=df_avg_std,
+            std_factor=1,
+            avg_alias=avg_alias,
+            std_alias=std_alias,
+        )
+    df_y_avg_std = df_predictions.with_columns(df_slice.select(y_col))
+    X, std, y = get_dataframe_output(
+        df=df_y_avg_std,
+        avg_alias=avg_alias,
+        std_alias=std_alias,
+        y_col=y_col,
+    )
+    if linearize:
+        model = LinearRegression().fit(X_holdout, y_holdout)
+        X = model.coef_ * X + model.intercept_
+    else:
+        holdout_means = holdout_slice.mean()
+        difference = (
+            holdout_means.select(y_col).item() - holdout_means.select(avg_alias).item()
+        )
+        X = X + difference
+    # df_predictions = df.select(pl.exclude(y_col))
+    # df_avg_std = get_avg_std(
+    #     df=df_predictions,
+    #     avg_alias=avg_alias,
+    #     std_alias=std_alias,
+    # )
+    # df_y_avg_std = df_avg_std.with_columns(df.select(y_col))
+    # X, std, y = modify_data(
+    #     linearize=linearize,
+    #     holdout_indices=holdout_indices,
+    #     df_y_avg_std=df_y_avg_std,
+    #     y_col=y_col,
+    #     avg_alias=avg_alias,
+    #     std_alias=std_alias,
+    # )
     lower = X - std
     upper = X + std
 

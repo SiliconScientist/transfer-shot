@@ -1,4 +1,5 @@
 import re
+import numpy as np
 import polars as pl
 from ase.db import connect
 from ase.atoms import Atoms
@@ -118,3 +119,14 @@ def get_data(cfg: Config) -> pl.DataFrame:
         get_predictions(cfg)
         df = pl.read_parquet(cfg.paths.processed.predictions)
     return df
+
+
+def get_holdout_split(
+    df: pl.DataFrame, y_col: str, holdout_indices: list[int]
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    df_X = df.select(pl.exclude(y_col))
+    X = df_X.to_numpy()
+    y = df[y_col].to_numpy()
+    mask = np.zeros(X.shape[0], dtype=bool)
+    mask[holdout_indices] = True
+    return X[mask], y[mask], X[~mask], y[~mask]

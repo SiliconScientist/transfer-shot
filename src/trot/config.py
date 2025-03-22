@@ -34,5 +34,9 @@ class Paths(BaseModel):
 
 class Config(BaseModel):
     random_seed: int
+    n: int
+    linearize: bool
+    removal_iterations: int
+    y_key: str
     paths: Paths
     processing: Processing
