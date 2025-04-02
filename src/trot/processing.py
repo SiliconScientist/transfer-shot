@@ -128,5 +128,5 @@ def get_holdout_split(
     X = df_X.to_numpy()
     y = df[y_col].to_numpy()
     mask = np.zeros(X.shape[0], dtype=bool)
-    mask[holdout_indices] = True
-    return X[mask], y[mask], X[~mask], y[~mask]
+    mask[list(holdout_indices)] = True
+    return X[~mask], y[~mask], X[mask], y[mask]

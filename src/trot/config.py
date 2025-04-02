@@ -34,9 +34,10 @@ class Paths(BaseModel):
 
 class Config(BaseModel):
     random_seed: int
-    n: int
+    max_samples: int
     linearize: bool
     removal_iterations: int
+    std_factor: int
     y_key: str
     paths: Paths
     processing: Processing
