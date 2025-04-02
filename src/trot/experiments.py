@@ -57,6 +57,7 @@ def n_shot(
     df: pl.DataFrame,
     max_samples: int = 2,
     fsc_bins: int = 1,
+    hist_bins: int = 6,
     linearize: bool = False,
 ) -> None:
     sample_range = range(2 if linearize else 0, max_samples + 1)
@@ -96,7 +97,6 @@ def n_shot(
         )
         rmse_mean = np.mean(rmse_list)
         rmse_mean_list.append(rmse_mean)
-        hist_bins = 6
         make_histogram_plot(
             cfg=cfg,
             data=rmse_list,
