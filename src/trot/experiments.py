@@ -65,17 +65,28 @@ def n_shot(
     rmse_mean_list = []
     for n in sample_range:
         rmse_list = []
-        if df_holdout:
+        if df_holdout is not None:
             num_samples = df_holdout.height
         else:
             num_samples = df.height
         for holdout_indices in itertools.combinations(range(num_samples), n):
             X, y = df_to_numpy(df, cfg.y_key)
-            X, y, X_holdout, y_holdout = get_holdout_split(
-                X=X,
-                y=y,
-                holdout_indices=holdout_indices,
-            )
+            # If you're using a given dataset as the holdout set, then you'll
+            # make those the holdout samples
+            if df_holdout is not None:
+                X_source, y_source = df_to_numpy(df_holdout, cfg.y_key)
+                _, _, X_holdout, y_holdout = get_holdout_split(
+                    X=X_source,
+                    y=y_source,
+                    holdout_indices=holdout_indices,
+                )
+            # Otherwise, you'll split your original dataset to make holdout set
+            else:
+                X, y, X_holdout, y_holdout = get_holdout_split(
+                    X=X,
+                    y=y,
+                    holdout_indices=holdout_indices,
+                )
             if n >= 1:
                 X, y = modify_data(
                     X=X,

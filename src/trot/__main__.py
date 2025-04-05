@@ -8,10 +8,12 @@ from trot.experiments import n_shot
 
 def main():
     cfg = Config(**toml.load("config.toml"))
-    df = get_data(cfg)
+    df = get_data(cfg, holdout_set=False)
+    df_holdout = get_data(cfg, holdout_set=True)
     n_shot(
         cfg=cfg,
         df=df,
+        df_holdout=df_holdout,
         max_samples=cfg.max_samples,
         linearize=cfg.linearize,
     )

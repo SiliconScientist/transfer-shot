@@ -10,6 +10,7 @@ class Raw(BaseModel):
 
 class Processed(BaseModel):
     predictions: Path
+    holdout_predictions: Path
 
 
 class Results(BaseModel):

@@ -112,12 +112,14 @@ def get_predictions(cfg: Config) -> pl.DataFrame:
     df.write_parquet(cfg.paths.processed.predictions)
 
 
-def get_data(cfg: Config) -> pl.DataFrame:
+def get_data(cfg: Config, holdout_set: bool) -> pl.DataFrame:
     if cfg.paths.processed.predictions.exists():
         df = pl.read_parquet(cfg.paths.processed.predictions)
     else:
         get_predictions(cfg)
         df = pl.read_parquet(cfg.paths.processed.predictions)
+    if holdout_set:
+        df = pl.read_parquet(cfg.paths.processed.holdout_predictions)
     return df
 
 
