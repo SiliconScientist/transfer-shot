@@ -121,12 +121,18 @@ def get_data(cfg: Config) -> pl.DataFrame:
     return df
 
 
-def get_holdout_split(
-    df: pl.DataFrame, y_col: str, holdout_indices: list[int]
+def df_to_numpy(
+    df: pl.DataFrame, y_col: str
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     df_X = df.select(pl.exclude(y_col))
     X = df_X.to_numpy()
     y = df[y_col].to_numpy()
+    return X, y
+
+
+def get_holdout_split(
+    X: np.ndarray, y: np.ndarray, holdout_indices: list[int]
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     mask = np.zeros(X.shape[0], dtype=bool)
     mask[list(holdout_indices)] = True
     return X[~mask], y[~mask], X[mask], y[mask]

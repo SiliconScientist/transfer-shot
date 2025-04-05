@@ -6,7 +6,7 @@ from sklearn.linear_model import LinearRegression
 from trot.config import Config
 from trot.coverage import get_fsc_metric
 from trot.evaluate import get_rmse
-from trot.processing import get_holdout_split
+from trot.processing import df_to_numpy, get_holdout_split
 from trot.visualize import (
     make_bar_plot,
     make_parity_plot,
@@ -55,6 +55,7 @@ def remove_outliers(X: np.ndarray, std_factor: float = 1.0) -> np.ndarray:
 def n_shot(
     cfg: Config,
     df: pl.DataFrame,
+    df_holdout: pl.DataFrame | None = None,
     max_samples: int = 2,
     fsc_bins: int = 1,
     hist_bins: int = 6,
@@ -64,10 +65,15 @@ def n_shot(
     rmse_mean_list = []
     for n in sample_range:
         rmse_list = []
-        for holdout_indices in itertools.combinations(range(1, df.height), n):
+        if df_holdout:
+            num_samples = df_holdout.height
+        else:
+            num_samples = df.height
+        for holdout_indices in itertools.combinations(range(num_samples), n):
+            X, y = df_to_numpy(df, cfg.y_key)
             X, y, X_holdout, y_holdout = get_holdout_split(
-                df=df,
-                y_col=cfg.y_key,
+                X=X,
+                y=y,
                 holdout_indices=holdout_indices,
             )
             if n >= 1:
