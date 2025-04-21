@@ -3,7 +3,7 @@ import numpy as np
 import polars as pl
 from ase.db import connect
 from ase.atoms import Atoms
-from ase.io import write
+from ase.io import read, write
 from pathlib import Path
 
 from trot.config import Config
@@ -25,12 +25,29 @@ GAS_PHASE_ENERGIES = {
 
 
 def get_atoms_list(raw_path: Path) -> list[Atoms]:
-    db = connect(raw_path)
-    atoms_list = []
-    for row in db.select():
-        atoms = row.toatoms()
-        atoms_list.append(atoms)
-    return atoms_list
+    if Path(raw_path).suffix == ".extxyz":
+        atoms_list = []
+        with open(raw_path, "r") as f:
+            for line in f:
+                if line.startswith("Atoms"):
+                    atoms = Atoms(line.split()[1])
+                    atoms_list.append(atoms)
+        return atoms_list
+    if Path(raw_path).suffix == ".db":
+        db = connect(raw_path)
+        atoms_list = []
+        for row in db.select():
+            atoms = row.toatoms()
+            atoms_list.append(atoms)
+        return atoms_list
+
+
+def get_potential_energies(atoms_list: list[Atoms]):
+    energies = []
+    for atoms in atoms_list:
+        energy = atoms.get_potential_energy()
+        energies.append(energy)
+    return energies
 
 
 def filter_for_host(
@@ -107,7 +124,11 @@ def build_df(
 
 
 def get_predictions(cfg: Config) -> pl.DataFrame:
-    energies, atoms_list = process_data(cfg)
+    if cfg.paths.raw.bare.exists():
+        energies, atoms_list = process_data(cfg)
+    else:
+        atoms_list = read(filename=cfg.paths.raw.adsorbed, index=":", format="extxyz")
+        energies = get_potential_energies(atoms_list=atoms_list)
     df = build_df(cfg=cfg, atoms_list=atoms_list, energies=energies)
     df.write_parquet(cfg.paths.processed.predictions)
 
