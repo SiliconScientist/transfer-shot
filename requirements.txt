@@ -3,3 +3,13 @@ toml
 tqdm
 polars
 seaborn
+
+# PyTorch and PyTorch Geometric installation will vary based on your system.
+torch
+torch_geometric
+--find-links https://data.pyg.org/whl/torch-2.6.0+cpu.html
+torch_scatter
+torch_sparse
+torch_cluster
+fairchem-core
+-e .
