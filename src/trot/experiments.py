@@ -2,6 +2,7 @@ import itertools
 import polars as pl
 import numpy as np
 from sklearn.linear_model import LinearRegression
+from typing import Union
 
 from trot.config import Config
 from trot.coverage import get_fsc_metric
@@ -55,7 +56,7 @@ def remove_outliers(X: np.ndarray, std_factor: float = 1.0) -> np.ndarray:
 def n_shot(
     cfg: Config,
     df: pl.DataFrame,
-    df_holdout: pl.DataFrame | None = None,
+    df_holdout: Union[pl.DataFrame, None] = None,
     max_samples: int = 2,
     fsc_bins: int = 1,
     hist_bins: int = 6,
