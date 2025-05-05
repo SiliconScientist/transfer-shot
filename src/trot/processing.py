@@ -5,6 +5,7 @@ from ase.db import connect
 from ase.atoms import Atoms
 from ase.io import read, write
 from pathlib import Path
+from tqdm import tqdm
 
 from trot.config import Config
 from trot.model import get_calculator, set_calculators
@@ -103,7 +104,12 @@ def get_model_predictions(cfg: Config, atoms_list: list[Atoms]) -> pl.DataFrame:
     for name in MODEL_NAMES:
         calc = get_calculator(cfg=cfg, name=name)
         atoms_list_copy = set_calculators(atoms_list, calc)
-        energies = [atoms.get_potential_energy() for atoms in atoms_list_copy]
+        energies = [
+            atoms.get_potential_energy()
+            for atoms in tqdm(
+                atoms_list_copy, desc=f"Energies ({name})", total=len(atoms_list_copy)
+            )
+        ]
         adsorption_energies[name] = energies
     return pl.DataFrame(adsorption_energies)
 
@@ -116,6 +122,9 @@ def clean_column_name(name):
 def build_df(
     cfg: Config, atoms_list: list[Atoms], energies: list[float]
 ) -> pl.DataFrame:
+    if cfg.dev_run:
+        atoms_list = atoms_list[:1]
+        energies = energies[:1]
     df_y = pl.DataFrame({"DFT": energies})
     df_predictions = get_model_predictions(cfg, atoms_list)
     df = pl.concat([df_y, df_predictions], how="horizontal")

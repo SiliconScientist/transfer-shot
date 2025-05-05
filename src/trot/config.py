@@ -34,6 +34,7 @@ class Paths(BaseModel):
 
 class Config(BaseModel):
     random_seed: int
+    dev_run: bool
     max_samples: int
     linearize: bool
     removal_iterations: int
