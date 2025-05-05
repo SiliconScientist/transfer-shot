@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import polars as pl
 from sklearn.linear_model import LinearRegression
+from typing import Union
 
 from trot.config import Config
 
@@ -41,7 +42,7 @@ def make_parity_plot(
     x_label: str,
     y_label: str,
     title: str,
-    inset: float | None = None,
+    inset: Union[float, None] = None,
 ):
     plt.figure()
     # Plot parity line
@@ -95,7 +96,7 @@ def make_histogram_plot(
     x_label: str,
     title: str,
     bins: int = 5,
-    file_tag: str | None = None,
+    file_tag: Union[str, None] = None,
 ) -> None:
     plt.figure()
     plt.hist(x=data, bins=bins, edgecolor="black", alpha=0.7)
