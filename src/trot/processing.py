@@ -136,10 +136,19 @@ def get_predictions(cfg: Config) -> pl.DataFrame:
     if cfg.paths.raw.bare.exists():
         energies, atoms_list = process_data(cfg)
     else:
-        atoms_list = read(filename=cfg.paths.raw.adsorbed, index=":", format="extxyz")
+        atoms_list = read(filename=cfg.paths.raw.adsorbed, index=":")
         energies = get_potential_energies(atoms_list=atoms_list)
     df = build_df(cfg=cfg, atoms_list=atoms_list, energies=energies)
     df.write_parquet(cfg.paths.processed.predictions)
+
+
+def remove_high_variance_samples(
+    df: pl.DataFrame, variance_threshold: float = 1.0
+) -> pl.DataFrame:
+    prediction_cols = [col for col in df.columns if col != "DFT"]
+    df = df.with_columns(pl.concat_list(prediction_cols).list.std().alias("std_dev"))
+    df_filtered = df.filter(pl.col("std_dev") <= variance_threshold).drop("std_dev")
+    return df_filtered
 
 
 def get_data(cfg: Config, holdout_set: bool) -> pl.DataFrame:
@@ -150,6 +159,10 @@ def get_data(cfg: Config, holdout_set: bool) -> pl.DataFrame:
         df = pl.read_parquet(cfg.paths.processed.predictions)
     if holdout_set:
         df = pl.read_parquet(cfg.paths.processed.holdout_predictions)
+    if cfg.remove_high_variance:
+        df = remove_high_variance_samples(
+            df=df, variance_threshold=cfg.variance_threshold
+        )
     return df
 
 
