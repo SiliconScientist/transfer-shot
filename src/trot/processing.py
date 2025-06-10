@@ -3,6 +3,7 @@ import numpy as np
 import polars as pl
 from ase.db import connect
 from ase.atoms import Atoms
+from ase.calculators.singlepoint import SinglePointCalculator
 from ase.io import read, write
 from pathlib import Path
 from tqdm import tqdm
@@ -34,18 +35,22 @@ def get_atoms_list(raw_path: Path) -> list[Atoms]:
                     atoms = Atoms(line.split()[1])
                     atoms_list.append(atoms)
         return atoms_list
-    if Path(raw_path).suffix == ".db":
+    elif Path(raw_path).suffix == ".db":
         db = connect(raw_path)
         atoms_list = []
         for row in db.select():
             atoms = row.toatoms()
             atoms_list.append(atoms)
         return atoms_list
+    else:
+        raise ValueError(f"Unsupported file format: {raw_path.suffix}")
 
 
-def get_potential_energies(atoms_list: list[Atoms]):
+def get_potential_energies(atoms_list: list[Atoms], default_energy: float = np.nan):
     energies = []
     for atoms in atoms_list:
+        if atoms.calc is None:
+            atoms.calc = SinglePointCalculator(atoms, energy=default_energy)
         energy = atoms.get_potential_energy()
         energies.append(energy)
     return energies
