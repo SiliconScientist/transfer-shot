@@ -35,6 +35,7 @@ class Paths(BaseModel):
 class Config(BaseModel):
     random_seed: int
     dev_run: bool
+    cpu: bool
     remove_high_variance: bool
     variance_threshold: float
     max_samples: int
