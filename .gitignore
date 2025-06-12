@@ -175,6 +175,7 @@ uv.lock
 
 # Configuration file
 config.toml
+.config.toml.swp
 pretrained.toml
 
 # Data directory
@@ -197,3 +198,4 @@ interactive.sh
 # HPC specific files:
 requirements-hpc.txt
 hpc_installation.sh
+dev_run.sh
