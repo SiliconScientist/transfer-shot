@@ -18,6 +18,7 @@ def get_calculator(
     calc = OCPCalculator(
         checkpoint_path=checkpoint_path, seed=cfg.random_seed, cpu=cfg.cpu
     )
+    calc.trainer.model.to("cuda")
     return calc
 
 

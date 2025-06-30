@@ -1,15 +1,21 @@
+--extra-index-url https://download.pytorch.org/whl/cu118
+-f https://data.pyg.org/whl/torch-2.4.0+cu118.html
+
 pydantic
 toml
 tqdm
 polars
 seaborn
+scikit-learn
 
 # PyTorch and PyTorch Geometric installation will vary based on your system.
 torch
+torchvision
+torchaudio
+
 torch_geometric
---find-links https://data.pyg.org/whl/torch-2.6.0+cpu.html
 torch_scatter
 torch_sparse
 torch_cluster
-fairchem-core
+fairchem-core==1.10.0
 -e .
