@@ -15,10 +15,7 @@ class Processed(BaseModel):
 class Results(BaseModel):
     visualizations: Path
     parity_plot: Path
-    multiclass_parity_plot: Path
-    iter_avg: Path
     bar_plot: Path
-    hist_plot: Path
 
 
 class Processing(BaseModel):
@@ -36,6 +33,7 @@ class Config(BaseModel):
     random_seed: int
     dev_run: bool
     cpu: bool
+    target: float
     remove_high_variance: bool
     variance_threshold: float
     max_samples: int

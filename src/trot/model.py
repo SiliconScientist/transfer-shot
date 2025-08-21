@@ -16,7 +16,10 @@ def get_calculator(
         local_cache=local_cache,
     )
     calc = OCPCalculator(
-        checkpoint_path=checkpoint_path, seed=cfg.random_seed, cpu=cfg.cpu
+        checkpoint_path=checkpoint_path,
+        seed=cfg.random_seed,
+        cpu=cfg.cpu,
+        only_output=["energy"],
     )
     return calc
 

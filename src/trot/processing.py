@@ -11,12 +11,18 @@ from tqdm import tqdm
 from trot.config import Config
 from trot.model import get_calculator, set_calculators
 
+# MODEL_NAMES = [
+#     "DimeNet++-S2EF-OC20-All",
+#     "SchNet-S2EF-OC20-All",
+#     "PaiNN-S2EF-OC20-All",
+#     "SCN-S2EF-OC20-All+MD",
+#     "GemNet-dT-S2EF-OC20-All",
+# ]
+
 MODEL_NAMES = [
-    "DimeNet++-S2EF-OC20-All",
-    "SchNet-S2EF-OC20-All",
-    "PaiNN-S2EF-OC20-All",
-    "SCN-S2EF-OC20-All+MD",
-    "GemNet-dT-S2EF-OC20-All",
+    "DimeNet++-IS2RE-OC20-All",
+    "SchNet-IS2RE-OC20-All",
+    "PaiNN-IS2RE-OC20-All",
 ]
 
 # Units: eV
@@ -128,8 +134,8 @@ def build_df(
     cfg: Config, atoms_list: list[Atoms], energies: list[float]
 ) -> pl.DataFrame:
     if cfg.dev_run:
-        atoms_list = atoms_list[:1]
-        energies = energies[:1]
+        atoms_list = atoms_list[:5]
+        energies = energies[:5]
     df_y = pl.DataFrame({"DFT": energies})
     df_predictions = get_model_predictions(cfg, atoms_list)
     df = pl.concat([df_y, df_predictions], how="horizontal")

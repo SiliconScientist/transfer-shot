@@ -1,4 +1,5 @@
 import itertools
+from matplotlib import pyplot as plt
 import polars as pl
 import numpy as np
 from sklearn.linear_model import LinearRegression
@@ -38,10 +39,7 @@ def modify_data(
         X = model.coef_ * X + model.intercept_
         return X, y
     else:
-        X_mean = X_holdout.mean()
-        y_mean = y_holdout.mean()
-        difference = y_mean - X_mean
-        X = X + difference
+        X += y_holdout.mean() - X_holdout.mean()
         return X, y
 
 
@@ -134,68 +132,62 @@ def n_shot(
     )
 
 
-# def iterative_averages(
-#     cfg: Config,
-#     df: pl.DataFrame,
-#     y_col: str,
-#     iterations: int = 4,
-#     std_factor: int = 1,
-#     avg_alias: str = "average",
-#     std_alias: str = "std",
-# ) -> None:
-#     rmse_list = []
-#     df_avgs = pl.DataFrame()
-#     df_predictions = df.select(pl.exclude(y_col))
-#     for i in range(iterations):
-#         df_avg_std = get_avg_std(df_predictions, avg_alias, std_alias)
-#         df_predictions = remove_outliers(
-#             df=df_predictions,
-#             df_avg_std=df_avg_std,
-#             std_factor=std_factor,
-#             avg_alias=avg_alias,
-#             std_alias=std_alias,
-#         )
-#         df_y_avg_std = df_avg_std.with_columns(df.select(y_col))
-#         X, _, y = get_dataframe_output(
-#             df_y_avg_std=df_y_avg_std,
-#             avg_alias=avg_alias,
-#             std_alias=std_alias,
-#             y_col=y_col,
-#         )
-#         rmse = get_rmse(y=y, y_pred=X)
-#         rmse_list.append(rmse)
-#         df_avg = df_avg_std.drop(std_alias).rename({avg_alias: f"{avg_alias}_{i}"})
-#         df_avgs = df_avgs.hstack(df_avg)
-#     make_bar_plot(
-#         cfg=cfg,
-#         x_axis=range(iterations),
-#         y_axis=rmse_list,
-#         x_label="Iterations",
-#         y_label="RMSE (eV)",
-#         title=f"RMSE vs Iterations with std_factor = {std_factor}",
-#     )
-#     df_y_avg = df_avgs.hstack(df.select(y_col))
-#     make_multiclass_parity_plot(cfg=cfg, df=df_y_avg, y_col=y_col)
-#     X, std, y = get_dataframe_output(
-#         df_y_avg_std=df_y_avg_std,
-#         avg_alias=avg_alias,
-#         std_alias=std_alias,
-#         y_col=y_col,
-#     )
-#     lower = X - std
-#     upper = X + std
-#     bins = 6
-#     binned_indices = get_binned_indices(data=X.squeeze(), bins=bins)
-#     fsc = get_fsc_metric(binned_indices, y, lower, upper)
-#     rmse = get_rmse(y=y, y_pred=X)
-#     inset = f"RMSE: {rmse:.3f} \n FSC (bins={bins}): {fsc:.3f}"
-#     make_parity_plot(
-#         cfg=cfg,
-#         x_axis=X,
-#         y_axis=y,
-#         yerr=std.squeeze(),
-#         x_label=f"{avg_alias}_{iterations - 1}",
-#         y_label=y_col,
-#         title=f"Parity Plot with std_factor = {std_factor}",
-#         inset=inset,
-#     )
+def greedy_cost(
+    mean: np.ndarray,
+    std: np.ndarray,
+    target: float,
+    alpha: float = 0.5,  # Equal weighting of accuracy and uncertainty
+) -> np.ndarray:
+    range_mu = np.ptp(mean)  # max - min
+    range_sigma = np.ptp(std)  # max - min
+    # Add a small epsilon to avoid division by zero if range is zero
+    epsilon = 1e-8
+    range_mu = range_mu if range_mu > 0 else epsilon
+    range_sigma = range_sigma if range_sigma > 0 else epsilon
+
+    accuracy_term = np.abs(mean - target) / range_mu
+    uncertainty_term = std / range_sigma
+    cost = alpha * accuracy_term + (1 - alpha) * uncertainty_term
+    return cost
+
+
+def plot_candidates(
+    mean: np.ndarray,
+    std: np.ndarray,
+    cost: np.ndarray,
+    target: float,
+    top_n: int = 10,
+) -> None:
+    sorted_indices = np.argsort(cost)
+    top_indices = sorted_indices[:top_n]
+    plt.figure(figsize=(8, 5))
+    for rank, i in enumerate(top_indices):
+        plt.errorbar(
+            x=rank + 1, y=mean[i], yerr=std[i], fmt="o", label=f"Candidate {i}"
+        )
+    plt.axhline(y=target, color="r", linestyle="--", label="Target")
+    plt.xlabel("Candidate Rank (by cost)")
+    plt.ylabel("Binding Energy (eV)")
+    plt.title("Top Candidates by Cost")
+    plt.legend(fontsize=6)
+    plt.tight_layout()
+    plt.show()
+
+
+def get_recommendation(
+    cfg: Config,
+    df: pl.DataFrame,
+    cost_fn: callable,
+    df_holdout: Union[pl.DataFrame, None] = None,
+) -> pl.DataFrame:
+    X, y = df_to_numpy(df, cfg.y_key)
+    X_holdout, y_holdout = df_to_numpy(df_holdout, cfg.y_key)
+    X, y = modify_data(
+        X=X, y=y, X_holdout=X_holdout, y_holdout=y_holdout, linearize=cfg.linearize
+    )
+    mean = np.nanmean(X, axis=1)
+    std = np.nanstd(X, axis=1)
+    cost = cost_fn(mean, std, target=cfg.target, alpha=0.75)
+    plot_candidates(mean, std, cost, target=cfg.target)
+    minimum_index = np.argmin(cost)
+    return minimum_index

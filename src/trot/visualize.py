@@ -79,11 +79,11 @@ def make_bar_plot(
     title: str,
 ):
     plt.figure()
-    plt.bar(x_axis, y_axis)
+    plt.bar(x_axis, y_axis, color="#FF6600")
     plt.ylim(0, max(y_axis) * 1.2)
     plt.xlabel(xlabel=x_label, fontsize=16)
     plt.xticks(np.arange(min(x_axis), max(x_axis) + 1, 1))
-    plt.ylabel(ylabel=y_label, fontsize=16, rotation=0, labelpad=48)
+    plt.ylabel(ylabel=y_label, fontsize=16, rotation=0, labelpad=68)
     plt.title(label=title)
     plt.savefig(cfg.paths.results.bar_plot, bbox_inches="tight")
     plt.close()
@@ -99,16 +99,20 @@ def make_histogram_plot(
     file_tag: Union[str, None] = None,
 ) -> None:
     plt.figure()
-    plt.hist(x=data, bins=bins, edgecolor="black", alpha=0.7)
+    plt.hist(x=data, bins=bins, color="#0073FF", edgecolor="black", alpha=0.7)
     plt.axvline(
-        mean, color="red", linestyle="--", linewidth=2, label=f"Mean = {mean:.2f}"
+        mean,
+        color="#FF6600",
+        linestyle="--",
+        linewidth=2,
+        label=f"Mean RMSE = {mean:.2f}",
     )
     plt.legend()
     plt.xlabel(xlabel=x_label, fontsize=16)
     plt.ylabel("Frequency", fontsize=16, rotation=0, labelpad=48)
     plt.title(label=title)
     plt.savefig(
-        cfg.paths.results.visualizations / f"histogram_{file_tag}.png",
+        cfg.paths.results.visualizations / f"uma_relaxed_histogram_{file_tag}.png",
         bbox_inches="tight",
     )
     plt.close()
