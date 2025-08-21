@@ -21,6 +21,7 @@ def get_calculator(
         cpu=cfg.cpu,
         only_output=["energy"],
     )
+    calc.trainer.model.to("cuda")
     return calc
 
 
