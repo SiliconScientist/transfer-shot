@@ -112,7 +112,7 @@ def make_histogram_plot(
     plt.ylabel("Frequency", fontsize=16, rotation=0, labelpad=48)
     plt.title(label=title)
     plt.savefig(
-        cfg.paths.results.visualizations / f"uma_relaxed_histogram_{file_tag}.png",
+        cfg.paths.results.visualizations / f"histogram_{file_tag}.png",
         bbox_inches="tight",
     )
     plt.close()

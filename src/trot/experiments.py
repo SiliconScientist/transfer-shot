@@ -1,4 +1,4 @@
-import itertools
+import random
 from matplotlib import pyplot as plt
 import polars as pl
 import numpy as np
@@ -68,7 +68,12 @@ def n_shot(
             num_samples = df_holdout.height
         else:
             num_samples = df.height
-        for holdout_indices in itertools.combinations(range(num_samples), n):
+        max_combos = 1000
+        all_indices = list(range(num_samples))
+        combos = [
+            tuple(sorted(random.sample(all_indices, n))) for _ in range(max_combos)
+        ]
+        for holdout_indices in combos:
             X, y = df_to_numpy(df, cfg.y_key)
             # If you're using a given dataset as the holdout set, then you'll
             # make those the holdout samples

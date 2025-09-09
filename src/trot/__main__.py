@@ -10,9 +10,11 @@ from trot.experiments import get_recommendation, greedy_cost, n_shot
 def main():
     cfg = Config(**toml.load("config.toml"))
     df = get_data(cfg, holdout_set=False)
-    print(f"Dataframe shape: {df.shape}")
+
+    # Make a 100 sample subset of the df
+    # df_subset = df.sample(n=100, seed=cfg.random_seed)
     # df_holdout = get_data(cfg, holdout_set=True)
-    # n_shot(cfg, df)
+    # n_shot(cfg, df, max_samples=cfg.max_samples, linearize=cfg.linearize)
     # cost_fn = greedy_cost
     # recommendation_index = get_recommendation(
     #     cfg=cfg,
