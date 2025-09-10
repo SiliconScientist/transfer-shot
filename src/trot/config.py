@@ -19,8 +19,7 @@ class Results(BaseModel):
 
 
 class Processing(BaseModel):
-    gas_phase_adsorbate: str
-    num_atoms_adsorbed: int
+    device: str
 
 
 class Paths(BaseModel):

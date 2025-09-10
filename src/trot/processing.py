@@ -1,11 +1,9 @@
 import re
 import numpy as np
 import polars as pl
-from ase.db import connect
 from ase.atoms import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
-from ase.io import read, write
-from pathlib import Path
+from ase.io import read
 from tqdm import tqdm
 
 from trot.config import Config
@@ -19,38 +17,6 @@ MODEL_NAMES = [
     "GemNet-dT-S2EF-OC20-All",
 ]
 
-# MODEL_NAMES = [
-#     "DimeNet++-IS2RE-OC20-All",
-#     "SchNet-IS2RE-OC20-All",
-#     "PaiNN-IS2RE-OC20-All",
-# ]
-
-# Units: eV
-GAS_PHASE_ENERGIES = {
-    "H2": -6.74815624,
-    "O2": -9.848396,
-}
-
-
-def get_atoms_list(raw_path: Path) -> list[Atoms]:
-    if Path(raw_path).suffix == ".extxyz":
-        atoms_list = []
-        with open(raw_path, "r") as f:
-            for line in f:
-                if line.startswith("Atoms"):
-                    atoms = Atoms(line.split()[1])
-                    atoms_list.append(atoms)
-        return atoms_list
-    elif Path(raw_path).suffix == ".db":
-        db = connect(raw_path)
-        atoms_list = []
-        for row in db.select():
-            atoms = row.toatoms()
-            atoms_list.append(atoms)
-        return atoms_list
-    else:
-        raise ValueError(f"Unsupported file format: {raw_path.suffix}")
-
 
 def get_potential_energies(atoms_list: list[Atoms], default_energy: float = np.nan):
     energies = []
@@ -60,54 +26,6 @@ def get_potential_energies(atoms_list: list[Atoms], default_energy: float = np.n
         energy = atoms.get_potential_energy()
         energies.append(energy)
     return energies
-
-
-def filter_for_host(
-    atoms_list: list[Atoms],
-    host_atom: str,
-    host_criteria: int = 10,
-) -> list[Atoms]:
-    # The host material will be the majority of the surface (i.e. > 10 atoms)
-    filtered_atoms = [
-        atoms
-        for atoms in atoms_list
-        if atoms.get_chemical_symbols().count(host_atom) > host_criteria
-    ]
-    return filtered_atoms
-
-
-def get_adsorption_energy(adsorbed: float, bare: float, adsorbate: float) -> float:
-    return adsorbed - bare - adsorbate
-
-
-def get_adsorption_energies(
-    bare_surface: list[Atoms],
-    adsorbed_surface: list[Atoms],
-    adsorbate: float,
-) -> list[float]:
-    bare_adsorbed = zip(bare_surface, adsorbed_surface)
-    adsorption_energies = []
-    for bare, adsorbed in bare_adsorbed:
-        adsorption_energy = get_adsorption_energy(
-            adsorbed=adsorbed.get_potential_energy(),
-            bare=bare.get_potential_energy(),
-            adsorbate=adsorbate,
-        )
-        adsorption_energies.append(adsorption_energy)
-    return adsorption_energies
-
-
-def process_data(cfg: Config) -> tuple[list[float], list[Atoms]]:
-    bare_list = get_atoms_list(cfg.paths.raw.bare)
-    adsorbed_list = get_atoms_list(cfg.paths.raw.adsorbed)
-    bare = filter_for_host(atoms_list=bare_list, host_atom="Ag")
-    adsorbed = filter_for_host(atoms_list=adsorbed_list, host_atom="Ag")
-    energies = get_adsorption_energies(
-        bare_surface=bare,
-        adsorbed_surface=adsorbed,
-        adsorbate=GAS_PHASE_ENERGIES["O2"] / 2,
-    )
-    return energies, adsorbed
 
 
 def get_model_predictions(cfg: Config, atoms_list: list[Atoms]) -> pl.DataFrame:
@@ -144,11 +62,8 @@ def build_df(
 
 
 def get_predictions(cfg: Config) -> pl.DataFrame:
-    if cfg.paths.raw.bare.exists():
-        energies, atoms_list = process_data(cfg)
-    else:
-        atoms_list = read(filename=cfg.paths.raw.adsorbed, index=":")
-        energies = get_potential_energies(atoms_list=atoms_list)
+    atoms_list = read(filename=cfg.paths.raw.adsorbed, index=":")
+    energies = get_potential_energies(atoms_list=atoms_list)
     df = build_df(cfg=cfg, atoms_list=atoms_list, energies=energies)
     df.write_parquet(cfg.paths.processed.predictions)
 
