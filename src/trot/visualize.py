@@ -52,7 +52,15 @@ def make_parity_plot(
     model = LinearRegression().fit(x_axis, y_axis)
     plt.plot(x_grid, model.predict(x_grid), color="blue", linewidth=2)
     plt.scatter(x_axis, y_axis, color="blue", alpha=0.7, label="Data Points")
-    plt.errorbar(x_axis, y_axis, yerr=yerr, color="blue", fmt="o", capsize=5, alpha=0.7)
+    plt.errorbar(
+        x_axis,
+        y_axis,
+        yerr=yerr,
+        color="blue",
+        fmt="o",
+        capsize=5,
+        alpha=0.7,
+    )
     plt.title(label=title, fontsize=20)
     plt.text(
         x=max(x_axis),
@@ -74,13 +82,14 @@ def make_bar_plot(
     cfg: Config,
     x_axis: list,
     y_axis: list,
+    yerr: list,
     x_label: str,
     y_label: str,
     title: str,
 ):
     plt.figure()
-    plt.bar(x_axis, y_axis, color="#FF6600")
-    plt.ylim(0, max(y_axis) * 1.2)
+    plt.bar(x_axis, y_axis, color="#FF6600", yerr=yerr, capsize=6)
+    plt.ylim(0, max(y_axis) * 1.3)
     plt.xlabel(xlabel=x_label, fontsize=16)
     plt.xticks(np.arange(min(x_axis), max(x_axis) + 1, 1))
     plt.ylabel(ylabel=y_label, fontsize=16, rotation=0, labelpad=68)

@@ -56,12 +56,13 @@ def n_shot(
     df: pl.DataFrame,
     df_holdout: Union[pl.DataFrame, None] = None,
     max_samples: int = 2,
-    fsc_bins: int = 1,
+    fsc_bins: int = 6,
     hist_bins: int = 6,
     linearize: bool = False,
 ) -> None:
     sample_range = range(2 if linearize else 0, max_samples + 1)
     rmse_mean_list = []
+    rmse_std_list = []
     for n in sample_range:
         rmse_list = []
         if df_holdout is not None:
@@ -103,21 +104,26 @@ def n_shot(
                 X = remove_outliers(X, std_factor=cfg.std_factor)
             mean = np.nanmean(X, axis=1).reshape(-1, 1)
             std = np.nanstd(X, axis=1)
+            pred_intervals = 0.75 * std
             rmse = get_rmse(y_pred=mean, y=y)
             rmse_list.append(rmse)
-            fsc = get_fsc_metric(X=mean.squeeze(), std=std, y=y, bins=fsc_bins)
+            fsc = get_fsc_metric(
+                X=mean.squeeze(), std=pred_intervals, y=y, bins=fsc_bins
+            )
         make_parity_plot(
             cfg=cfg,
             x_axis=mean,
             y_axis=y,
-            yerr=std.squeeze(),
+            yerr=pred_intervals,
             x_label="Average energy (eV)",
             y_label="DFT energy (eV)",
             title=f"Parity Plot with {holdout_indices} holdouts",
             inset=f"RMSE: {rmse:.3f} \n FSC (bins={fsc_bins}): {fsc:.2f} \n Removals: {cfg.removal_iterations}",
         )
         rmse_mean = np.mean(rmse_list)
+        rmse_std = np.std(rmse_list)
         rmse_mean_list.append(rmse_mean)
+        rmse_std_list.append(rmse_std)
         make_histogram_plot(
             cfg=cfg,
             data=rmse_list,
@@ -131,6 +137,7 @@ def n_shot(
         cfg=cfg,
         x_axis=sample_range,
         y_axis=rmse_mean_list,
+        yerr=rmse_std_list,
         x_label="Number of holdouts",
         y_label="Mean RMSE (eV)",
         title="Mean RMSE vs Number of Holdouts",
@@ -141,7 +148,7 @@ def greedy_cost(
     mean: np.ndarray,
     std: np.ndarray,
     target: float,
-    alpha: float = 0.5,  # Equal weighting of accuracy and uncertainty
+    alpha: float = 0.75,  # Equal weighting of accuracy and uncertainty
 ) -> np.ndarray:
     range_mu = np.ptp(mean)  # max - min
     range_sigma = np.ptp(std)  # max - min
