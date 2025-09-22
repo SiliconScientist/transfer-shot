@@ -129,7 +129,6 @@ def n_shot(
             data=rmse_list,
             mean=rmse_mean,
             x_label="RMSE (eV)",
-            title=f"Histogram: Bins = {hist_bins}; Holdouts = {n}",
             bins=hist_bins,
             file_tag=f"holdouts_{n}",
         )
@@ -156,7 +155,6 @@ def greedy_cost(
     epsilon = 1e-8
     range_mu = range_mu if range_mu > 0 else epsilon
     range_sigma = range_sigma if range_sigma > 0 else epsilon
-
     accuracy_term = np.abs(mean - target) / range_mu
     uncertainty_term = std / range_sigma
     cost = alpha * accuracy_term + (1 - alpha) * uncertainty_term

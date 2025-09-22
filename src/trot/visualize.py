@@ -1,3 +1,4 @@
+from matplotlib.lines import Line2D
 import seaborn as sns
 import numpy as np
 import matplotlib.pyplot as plt
@@ -100,10 +101,9 @@ def make_bar_plot(
 
 def make_histogram_plot(
     cfg: Config,
-    data: np.ndarray,
+    data: list,
     mean: float,
     x_label: str,
-    title: str,
     bins: int = 5,
     file_tag: Union[str, None] = None,
 ) -> None:
@@ -114,12 +114,31 @@ def make_histogram_plot(
         color="#FF6600",
         linestyle="--",
         linewidth=2,
-        label=f"Mean RMSE = {mean:.2f}",
+        label=f"Mean {cfg.max_samples}-shot RMSE = {mean:.2f}",
     )
-    plt.legend()
+    zero_shot_rmse = 0.12683835625648499
+    plt.axvline(
+        zero_shot_rmse,
+        color="#6FFF00",
+        linestyle="--",
+        linewidth=2,
+        label=f"Zero-shot RMSE = {zero_shot_rmse:.2f}",
+    )
+    improvement_fraction = np.sum(np.array(data) < zero_shot_rmse) / len(data)
+    dummy = Line2D(
+        [], [], color="none", label=f"Fraction improved: {improvement_fraction:.2f}"
+    )
+
+    # get existing handles/labels
+    handles, labels = plt.gca().get_legend_handles_labels()
+
+    # put dummy last
+    handles.append(dummy)
+    labels.append(dummy.get_label())
+
+    plt.legend(handles, labels, loc="best")  # loc can be changed if needed
     plt.xlabel(xlabel=x_label, fontsize=16)
     plt.ylabel("Frequency", fontsize=16, rotation=0, labelpad=48)
-    plt.title(label=title)
     plt.savefig(
         cfg.paths.results.visualizations / f"histogram_{file_tag}.png",
         bbox_inches="tight",
