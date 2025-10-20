@@ -3,7 +3,7 @@ from matplotlib import pyplot as plt
 import polars as pl
 import numpy as np
 from sklearn.linear_model import LinearRegression
-from typing import Union
+from typing import Union, Dict, Any
 
 from trot.config import Config
 from trot.coverage import get_fsc_metric
@@ -35,11 +35,23 @@ def modify_data(
     linearize: bool,
 ) -> tuple[np.ndarray, np.ndarray]:
     if linearize:
-        model = LinearRegression().fit(X_holdout, y_holdout)
-        X = model.coef_ * X + model.intercept_
+        Xh = np.asarray(X_holdout)
+        yh = np.asarray(y_holdout).reshape(-1, 1)
+
+        if Xh.ndim == 1:
+            mu_h = Xh.reshape(-1, 1)  # (n,1)
+        else:
+            mu_h = Xh.mean(axis=1, keepdims=True)  # (n,1)
+
+        lr = LinearRegression().fit(mu_h, yh)
+        a = float(lr.coef_.ravel()[0])
+        b = float(lr.intercept_.ravel()[0])
+        X = a * X + b
         return X, y
     else:
-        X += y_holdout.mean() - X_holdout.mean()
+        mean_residual = y_holdout.mean() - X_holdout.mean()
+        print(f"Mean residual to add: {mean_residual:.3f} eV")
+        X += mean_residual
         return X, y
 
 
@@ -59,39 +71,75 @@ def n_shot(
     fsc_bins: int = 6,
     hist_bins: int = 6,
     linearize: bool = False,
-) -> None:
-    sample_range = range(2 if linearize else 0, max_samples + 1)
+    plot_now: bool = True,
+    seed: Union[int, None] = 0,
+) -> Dict[str, Any]:
+    """
+    Runs the n-shot evaluation and returns a results dictionary containing:
+      • RMSE data for each n
+      • Summary statistics across n
+      • Only the final parity snapshot (largest n)
+      • Only the final histogram data (largest n)
+    """
+    if seed is not None:
+        random.seed(seed)
+        np.random.seed(seed)
+
+    results: Dict[str, Any] = {
+        "settings": {
+            "max_samples": max_samples,
+            "fsc_bins": fsc_bins,
+            "hist_bins": hist_bins,
+            "linearize": linearize,
+            "removal_iterations": cfg.removal_iterations,
+            "std_factor": cfg.std_factor,
+            "y_key": cfg.y_key,
+        },
+        "per_n": {},  # holds RMSE stats per n
+        "summary": {},  # aggregate across n
+        "parity_final": None,
+        "histogram_final": None,
+    }
+
+    if linearize:
+        # 0-shot plus 2..max_samples (inclusive), skipping n=1
+        sample_range = [0] + list(range(2, max_samples + 1))
+    else:
+        sample_range = range(0, max_samples + 1)
     rmse_mean_list = []
     rmse_std_list = []
+    summary_ns = []
+
+    num_samples = df_holdout.height if df_holdout is not None else df.height
+
     for n in sample_range:
         rmse_list = []
-        if df_holdout is not None:
-            num_samples = df_holdout.height
-        else:
-            num_samples = df.height
+
+        # Generate random holdout index combinations
         max_combos = 1000
-        all_indices = list(range(num_samples))
-        combos = [
-            tuple(sorted(random.sample(all_indices, n))) for _ in range(max_combos)
-        ]
+        if n == 0:
+            combos = [tuple()]  # single empty holdout
+        else:
+            all_indices = list(range(num_samples))
+            combos = [
+                tuple(sorted(random.sample(all_indices, n))) for _ in range(max_combos)
+            ]
+
         for holdout_indices in combos:
             X, y = df_to_numpy(df, cfg.y_key)
-            # If you're using a given dataset as the holdout set, then you'll
-            # make those the holdout samples
+
+            # Split into train/holdout sets
             if df_holdout is not None:
                 X_source, y_source = df_to_numpy(df_holdout, cfg.y_key)
                 _, _, X_holdout, y_holdout = get_holdout_split(
-                    X=X_source,
-                    y=y_source,
-                    holdout_indices=holdout_indices,
+                    X=X_source, y=y_source, holdout_indices=holdout_indices
                 )
-            # Otherwise, you'll split your original dataset to make holdout set
             else:
                 X, y, X_holdout, y_holdout = get_holdout_split(
-                    X=X,
-                    y=y,
-                    holdout_indices=holdout_indices,
+                    X=X, y=y, holdout_indices=holdout_indices
                 )
+
+            # Modify data (few-shot)
             if n >= 1:
                 X, y = modify_data(
                     X=X,
@@ -100,47 +148,106 @@ def n_shot(
                     y_holdout=y_holdout,
                     linearize=linearize,
                 )
+
+            # Remove outliers
             for _ in range(cfg.removal_iterations):
                 X = remove_outliers(X, std_factor=cfg.std_factor)
+
+            # Compute stats
             mean = np.nanmean(X, axis=1).reshape(-1, 1)
             std = np.nanstd(X, axis=1)
-            pred_intervals = 0.75 * std
+            pred_intervals = std
             rmse = get_rmse(y_pred=mean, y=y)
-            rmse_list.append(rmse)
-            fsc = get_fsc_metric(
-                X=mean.squeeze(), std=pred_intervals, y=y, bins=fsc_bins
-            )
-        make_parity_plot(
-            cfg=cfg,
-            x_axis=mean,
-            y_axis=y,
-            yerr=pred_intervals,
-            x_label="Average energy (eV)",
-            y_label="DFT energy (eV)",
-            title=f"Parity Plot with {holdout_indices} holdouts",
-            inset=f"RMSE: {rmse:.3f} \n FSC (bins={fsc_bins}): {fsc:.2f} \n Removals: {cfg.removal_iterations}",
-        )
-        rmse_mean = np.mean(rmse_list)
-        rmse_std = np.std(rmse_list)
+            rmse_list.append(float(rmse))
+
+            # If this is the first n, keep parity snapshot
+            if n == 0:
+                results["parity_first"] = {
+                    "x": mean,
+                    "y": y.copy(),
+                    "yerr": pred_intervals.copy(),
+                    "rmse": rmse,
+                    "inset": f"{n}-shot RMSE: {rmse:.3f} eV",
+                }
+
+            # If this is the final n, keep last parity snapshot
+            if n == sample_range[-1]:
+                results["parity_final"] = {
+                    "x": mean,
+                    "y": y.copy(),
+                    "yerr": pred_intervals.copy(),
+                    "inset": f"{n}-shot RMSE: {rmse:.3f} eV",
+                }
+
+        # Compute summary stats
+        rmse_mean = float(np.mean(rmse_list)) if rmse_list else float("nan")
+        rmse_std = float(np.std(rmse_list)) if rmse_list else float("nan")
+
         rmse_mean_list.append(rmse_mean)
         rmse_std_list.append(rmse_std)
-        make_histogram_plot(
+        summary_ns.append(n)
+
+        # Save per-n stats (lightweight)
+        results["per_n"][n] = {
+            "rmse_mean": rmse_mean,
+            "rmse_std": rmse_std,
+        }
+
+        # If this is the final n, store histogram data
+        if n == sample_range[-1]:
+            results["histogram_final"] = {
+                "rmse_list": rmse_list,
+                "rmse_mean": rmse_mean,
+                "hist_bins": hist_bins,
+            }
+
+        # Optional plotting for current n
+        if plot_now and n == sample_range[-1]:
+            make_histogram_plot(
+                cfg=cfg,
+                data=rmse_list,
+                mean=rmse_mean,
+                x_label="RMSE (eV)",
+                bins=hist_bins,
+                file_tag=f"holdouts_{n}",
+            )
+
+    # Summary (for bar plot)
+    results["summary"] = {
+        "n_values": summary_ns,
+        "bar": {
+            "x": summary_ns,
+            "y": rmse_mean_list,
+            "yerr": rmse_std_list,
+            "x_label": "Number of holdouts",
+            "y_label": "Mean RMSE (eV)",
+        },
+    }
+
+    # Optional final bar + parity plots
+    if plot_now:
+        make_bar_plot(
             cfg=cfg,
-            data=rmse_list,
-            mean=rmse_mean,
-            x_label="RMSE (eV)",
-            bins=hist_bins,
-            file_tag=f"holdouts_{n}",
+            x_axis=results["summary"]["bar"]["x"],
+            y_axis=results["summary"]["bar"]["y"],
+            yerr=results["summary"]["bar"]["yerr"],
+            x_label=results["summary"]["bar"]["x_label"],
+            y_label=results["summary"]["bar"]["y_label"],
         )
-    make_bar_plot(
-        cfg=cfg,
-        x_axis=sample_range,
-        y_axis=rmse_mean_list,
-        yerr=rmse_std_list,
-        x_label="Number of holdouts",
-        y_label="Mean RMSE (eV)",
-        title="Mean RMSE vs Number of Holdouts",
-    )
+
+        if results["parity_final"] is not None:
+            p = results["parity_final"]
+            make_parity_plot(
+                cfg=cfg,
+                x_axis=p["x"],
+                y_axis=p["y"],
+                yerr=p["yerr"],
+                x_label="Ensemble energy (eV)",
+                y_label="DFT energy (eV)",
+                inset=p["inset"],
+            )
+
+    return results
 
 
 def greedy_cost(

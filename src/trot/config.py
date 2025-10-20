@@ -15,6 +15,7 @@ class Processed(BaseModel):
 class Results(BaseModel):
     visualizations: Path
     parity_plot: Path
+    multiclass_parity_plot: Path
     bar_plot: Path
 
 
