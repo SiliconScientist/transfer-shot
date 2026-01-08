@@ -81,10 +81,10 @@ def compare_ase_lists_for_movement(
     return bad_idxs
 
 
-dft_atoms_list = read("data/raw/relaxed_mamun_oh.extxyz", index=":")
+dft_atoms_list = read("data/raw/catalonia.traj", index=":")
 energy_list = [atoms.get_potential_energy() for atoms in dft_atoms_list]
 
-mlip_atoms_list = read("data/raw/uma_relaxed_mamun_oh.traj", index=":")
+mlip_atoms_list = read("data/raw/uma_relaxed_catalonia.traj", index=":")
 print(len(dft_atoms_list), len(mlip_atoms_list))
 atoms_list = []
 for atoms, energy in zip(mlip_atoms_list, energy_list):
@@ -100,5 +100,5 @@ pairs_good = [i for i in range(len(dft_atoms_list)) if i not in pairs_bad]
 bad_atoms_list = [atoms_list[i] for i in pairs_bad]
 good_atoms_list = [atoms_list[i] for i in pairs_good]
 
-write("data/processed/bad_pairs.traj", bad_atoms_list)
-write("data/processed/good_pairs.traj", good_atoms_list)
+write("data/processed/bad_pairs_catalonia.traj", bad_atoms_list)
+write("data/processed/good_pairs_catalonia.traj", good_atoms_list)

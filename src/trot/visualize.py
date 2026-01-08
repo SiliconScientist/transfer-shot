@@ -215,7 +215,7 @@ def make_summary_figure(
         fontsize=fontsize - 2,
         title_fontsize=fontsize - 1,
     )
-    ax.set_xlabel("MLIP (eV)", fontsize=fontsize)
+    ax.set_xlabel("MLIP energy (eV)", fontsize=fontsize)
     ax.set_ylabel(f"{cfg.y_key} energy (eV)", fontsize=fontsize)
     ax.tick_params(axis="both", which="major", labelsize=tick_fontsize)
 

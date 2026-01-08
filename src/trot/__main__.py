@@ -6,12 +6,13 @@ from functools import partial
 from trot.config import Config
 from trot.processing import get_data
 from trot.experiments import get_recommendation, greedy_cost, n_shot
-from trot.visualize import make_summary_figure, make_multiclass_parity_plot
+from trot.visualize import make_summary_figure
 
 
 def main():
     cfg = Config(**toml.load("config.toml"))
     df = get_data(cfg, holdout_set=False)
+    # df = df.drop("DIMENET")
     # df_subset = df.sample(n=0, seed=42)
     # df_holdout = get_data(cfg, holdout_set=True)
     results = n_shot(

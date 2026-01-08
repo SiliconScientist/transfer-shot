@@ -29,11 +29,10 @@ def get_avg_std(
 
 def modify_data(
     X: np.ndarray,
-    y: np.ndarray,
     X_holdout: np.ndarray,
     y_holdout: np.ndarray,
     linearize: bool,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> np.ndarray:
     if linearize:
         Xh = np.asarray(X_holdout)
         yh = np.asarray(y_holdout).reshape(-1, 1)
@@ -47,12 +46,14 @@ def modify_data(
         a = float(lr.coef_.ravel()[0])
         b = float(lr.intercept_.ravel()[0])
         X = a * X + b
-        return X, y
+        return X
     else:
-        mean_residual = y_holdout.mean() - X_holdout.mean()
-        print(f"Mean residual to add: {mean_residual:.3f} eV")
-        X += mean_residual
-        return X, y
+        # mean_residual = y_holdout.mean() - X_holdout.mean()  # Ensemble bias
+        # X += mean_residual
+        residuals = y_holdout[:, None] - X_holdout  # Model biases
+        mean_residuals = residuals.mean(axis=0)
+        X += mean_residuals
+        return X
 
 
 def remove_outliers(X: np.ndarray, std_factor: float = 1.0) -> np.ndarray:
@@ -141,9 +142,8 @@ def n_shot(
 
             # Modify data (few-shot)
             if n >= 1:
-                X, y = modify_data(
+                X = modify_data(
                     X=X,
-                    y=y,
                     X_holdout=X_holdout,
                     y_holdout=y_holdout,
                     linearize=linearize,
@@ -286,7 +286,7 @@ def plot_candidates(
     plt.xlabel("Candidate Rank (by cost)")
     plt.ylabel("Binding Energy (eV)")
     plt.title("Top Candidates by Cost")
-    plt.legend(fontsize=6)
+    # plt.legend(fontsize=6)
     plt.tight_layout()
     plt.show()
 
@@ -297,10 +297,10 @@ def get_recommendation(
     cost_fn: callable,
     df_holdout: Union[pl.DataFrame, None] = None,
 ) -> pl.DataFrame:
-    X, y = df_to_numpy(df, cfg.y_key)
+    X, _ = df_to_numpy(df, cfg.y_key)
     X_holdout, y_holdout = df_to_numpy(df_holdout, cfg.y_key)
-    X, y = modify_data(
-        X=X, y=y, X_holdout=X_holdout, y_holdout=y_holdout, linearize=cfg.linearize
+    X = modify_data(
+        X=X, X_holdout=X_holdout, y_holdout=y_holdout, linearize=cfg.linearize
     )
     mean = np.nanmean(X, axis=1)
     std = np.nanstd(X, axis=1)
