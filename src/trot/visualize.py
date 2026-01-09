@@ -211,7 +211,7 @@ def make_summary_figure(
     ax.legend(
         handles,
         labels,
-        title="MLIP RMSE",
+        title="MLIP $\\mathrm{{RMSE}}_{{parity}}$",
         fontsize=fontsize - 2,
         title_fontsize=fontsize - 1,
     )
@@ -252,17 +252,33 @@ def make_summary_figure(
         m0 = LinearRegression().fit(x0.reshape(-1, 1), y0)
         xfit = np.linspace(xmin, xmax, 200)
         yfit0 = m0.predict(xfit.reshape(-1, 1))
-        (line0,) = ax.plot(xfit, yfit0, lw=2, label=results["parity_first"]["inset"])
+        rmse0 = results["parity_first"]["rmse"]
+        rmse0_bf = results["parity_first"].get("rmse_best_fit")
+        label0 = (
+            f"0-shot $\\mathrm{{RMSE}}_{{parity}}$ = {rmse0:.3f}   "
+            f"$\\mathrm{{RMSE}}_{{fit}}$ = {rmse0_bf:.3f}"
+            if rmse0_bf is not None
+            else f"0-shot $\\mathrm{{RMSE}}_{{parity}}$ = {rmse0:.3f}"
+        )
+        (line0,) = ax.plot(xfit, yfit0, lw=2, label=label0)
 
         # final-shot regression
         mf = LinearRegression().fit(xf.reshape(-1, 1), yf)
         yfitf = mf.predict(xfit.reshape(-1, 1))
-        (linef,) = ax.plot(xfit, yfitf, lw=2, label=results["parity_final"]["inset"])
+        rmsef = results["parity_final"]["rmse"]
+        rmsef_bf = results["parity_final"].get("rmse_best_fit")
+        labelf = (
+            f"{cfg.max_samples}-shot $\\mathrm{{RMSE}}_{{parity}}$ = {rmsef:.3f}   "
+            f"$\\mathrm{{RMSE}}_{{fit}}$ = {rmsef_bf:.3f}"
+            if rmsef_bf is not None
+            else f"{cfg.max_samples}-shot $\\mathrm{{RMSE}}_{{parity}}$ = {rmsef:.3f}"
+        )
+        (linef,) = ax.plot(xfit, yfitf, lw=2, label=labelf)
 
         # Legend with ONLY the two fit lines
         ax.legend(
             handles=[line0, linef],
-            fontsize=fontsize - 2,
+            fontsize=fontsize - 3,
             loc="upper left",
             frameon=False,
         )
@@ -294,7 +310,7 @@ def make_summary_figure(
             color="#58CA00",
             linestyle="--",
             linewidth=2,
-            label=f"Zero-shot RMSE = {results['parity_first']['rmse']:.3f} eV",
+            label=f"Zero-shot $\\mathrm{{RMSE}}_{{parity}}$ = {results['parity_first']['rmse']:.3f} eV",
         )
         # Compute and add improvement fraction
         improvement_fraction = np.sum(

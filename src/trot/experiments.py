@@ -109,12 +109,15 @@ def n_shot(
         sample_range = range(0, max_samples + 1)
     rmse_mean_list = []
     rmse_std_list = []
+    rmse_best_fit_mean_list = []
+    rmse_best_fit_std_list = []
     summary_ns = []
 
     num_samples = df_holdout.height if df_holdout is not None else df.height
 
     for n in sample_range:
         rmse_list = []
+        rmse_best_fit_list = []
 
         # Generate random holdout index combinations
         max_combos = 1000
@@ -158,7 +161,11 @@ def n_shot(
             std = np.nanstd(X, axis=1)
             pred_intervals = std
             rmse = get_rmse(y_pred=mean, y=y)
+            best_fit = LinearRegression().fit(mean, y)
+            best_fit_pred = best_fit.predict(mean)
+            best_fit_rmse = get_rmse(y_pred=best_fit_pred, y=y)
             rmse_list.append(float(rmse))
+            rmse_best_fit_list.append(float(best_fit_rmse))
 
             # If this is the first n, keep parity snapshot
             if n == 0:
@@ -167,6 +174,7 @@ def n_shot(
                     "y": y.copy(),
                     "yerr": pred_intervals.copy(),
                     "rmse": rmse,
+                    "rmse_best_fit": best_fit_rmse,
                     "inset": f"{n}-shot RMSE: {rmse:.3f} eV",
                 }
 
@@ -177,20 +185,32 @@ def n_shot(
                     "y": y.copy(),
                     "yerr": pred_intervals.copy(),
                     "inset": f"{n}-shot RMSE: {rmse:.3f} eV",
+                    "rmse": rmse,
+                    "rmse_best_fit": best_fit_rmse,
                 }
 
         # Compute summary stats
         rmse_mean = float(np.mean(rmse_list)) if rmse_list else float("nan")
         rmse_std = float(np.std(rmse_list)) if rmse_list else float("nan")
+        rmse_best_fit_mean = (
+            float(np.mean(rmse_best_fit_list)) if rmse_best_fit_list else float("nan")
+        )
+        rmse_best_fit_std = (
+            float(np.std(rmse_best_fit_list)) if rmse_best_fit_list else float("nan")
+        )
 
         rmse_mean_list.append(rmse_mean)
         rmse_std_list.append(rmse_std)
+        rmse_best_fit_mean_list.append(rmse_best_fit_mean)
+        rmse_best_fit_std_list.append(rmse_best_fit_std)
         summary_ns.append(n)
 
         # Save per-n stats (lightweight)
         results["per_n"][n] = {
             "rmse_mean": rmse_mean,
             "rmse_std": rmse_std,
+            "rmse_best_fit_mean": rmse_best_fit_mean,
+            "rmse_best_fit_std": rmse_best_fit_std,
         }
 
         # If this is the final n, store histogram data
@@ -199,6 +219,8 @@ def n_shot(
                 "rmse_list": rmse_list,
                 "rmse_mean": rmse_mean,
                 "hist_bins": hist_bins,
+                "rmse_best_fit_list": rmse_best_fit_list,
+                "rmse_best_fit_mean": rmse_best_fit_mean,
             }
 
         # Optional plotting for current n
@@ -220,7 +242,14 @@ def n_shot(
             "y": rmse_mean_list,
             "yerr": rmse_std_list,
             "x_label": "Number of holdouts",
-            "y_label": "Mean RMSE (eV)",
+            "y_label": "Mean $\\mathrm{{RMSE}}_{{parity}}$ (eV)",
+        },
+        "best_fit_bar": {
+            "x": summary_ns,
+            "y": rmse_best_fit_mean_list,
+            "yerr": rmse_best_fit_std_list,
+            "x_label": "Number of holdouts",
+            "y_label": "Mean Best-Fit RMSE (eV)",
         },
     }
 
