@@ -345,7 +345,7 @@ def make_summary_figure(
         b = results["summary"]["bar"]
         ax = axes[1, 1]
         ax.bar(b["x"], b["y"], color="#FF6600", yerr=b["yerr"], alpha=0.8, capsize=4)
-        ax.set_ylim(0.09, max(b["y"]) * 1.3)
+        ax.set_ylim(0.0, max(b["y"]) * 1.3)
         ax.set_xlabel(b["x_label"], fontsize=fontsize)
         ax.set_ylabel(b["y_label"], fontsize=fontsize)
         ax.tick_params(axis="both", which="major", labelsize=tick_fontsize)
