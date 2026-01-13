@@ -215,8 +215,8 @@ def make_summary_figure(
         fontsize=fontsize - 2,
         title_fontsize=fontsize - 1,
     )
-    ax.set_xlabel("MLIP energy (eV)", fontsize=fontsize)
-    ax.set_ylabel(f"{cfg.y_key} energy (eV)", fontsize=fontsize)
+    ax.set_xlabel("MLIP $\\mathrm{E}_{ads}$ (eV)", fontsize=fontsize)
+    ax.set_ylabel(f"{cfg.y_key} $\\mathrm{{E}}_{{ads}}$ (eV)", fontsize=fontsize)
     ax.tick_params(axis="both", which="major", labelsize=tick_fontsize)
 
     # ----------------------
@@ -284,8 +284,8 @@ def make_summary_figure(
         )
 
         # Labels and title
-        ax.set_xlabel("Ensemble energy (eV)", fontsize=fontsize)
-        ax.set_ylabel("DFT energy (eV)", fontsize=fontsize)
+        ax.set_xlabel("Ensemble $\\mathrm{E}_{ads}$ (eV)", fontsize=fontsize)
+        ax.set_ylabel("DFT $\\mathrm{E}_{ads}$ (eV)", fontsize=fontsize)
         ax.tick_params(axis="both", which="major", labelsize=tick_fontsize)
 
     else:
