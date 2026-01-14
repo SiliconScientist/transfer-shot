@@ -13,6 +13,10 @@ def main():
     cfg = Config(**toml.load("config.toml"))
     df = get_data(cfg, holdout_set=False)
     # df = df.drop("DIMENET")
+    # df = df.drop("SCHNET")
+    # df = df.drop("PAINN")
+    # df = df.drop("SCN")
+    # df = df.drop("GEMNET")
     # df_subset = df.sample(n=0, seed=42)
     # df_holdout = get_data(cfg, holdout_set=True)
     results = n_shot(
