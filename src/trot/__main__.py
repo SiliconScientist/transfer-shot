@@ -6,7 +6,7 @@ from functools import partial
 from trot.config import Config
 from trot.processing import get_data
 from trot.experiments import get_recommendation, greedy_cost, n_shot
-from trot.visualize import make_summary_figure
+from trot.visualize import make_summary_figure, make_summary_figure_ad
 
 
 def main():
@@ -19,19 +19,25 @@ def main():
     # df = df.drop("GEMNET")
     # df_subset = df.sample(n=0, seed=42)
     # df_holdout = get_data(cfg, holdout_set=True)
-    results = n_shot(
-        cfg,
-        df,
-        max_samples=cfg.max_samples,
-        linearize=cfg.linearize,
-        seed=cfg.random_seed,
-    )
-    make_summary_figure(
-        cfg=cfg,
-        df=df,
-        results=results,
-        filename="data/results/visualizations/n_shot_summary.png",
-    )
+    # results = n_shot(
+    #     cfg,
+    #     df,
+    #     max_samples=cfg.max_samples,
+    #     linearize=cfg.linearize,
+    #     seed=cfg.random_seed,
+    # )
+    # make_summary_figure(
+    #     cfg=cfg,
+    #     df=df,
+    #     results=results,
+    #     filename="data/results/visualizations/n_shot_summary.png",
+    # )
+    # make_summary_figure_ad(
+    #     cfg=cfg,
+    #     df=df,
+    #     results=results,
+    #     filename="data/results/visualizations/n_shot_summary_ad.png",
+    # )
     # cost_fn = partial(greedy_cost, alpha=0.75)
     # recommendation_index = get_recommendation(
     #     cfg=cfg,

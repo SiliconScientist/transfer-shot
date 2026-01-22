@@ -141,20 +141,8 @@ def make_histogram_plot(
     plt.close()
 
 
-def make_summary_figure(
-    cfg, df, results, filename="n_shot_summary.png", fontsize=14, tick_fontsize=14
-):
-    """
-    Combine all main plots (first parity, final parity, final histogram, bar summary)
-    into one 2x2 figure.
-    """
-    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-    plt.subplots_adjust(wspace=0.3, hspace=0.35)
-
-    # ----------------------
+def _plot_panel_a(ax, cfg, df, fontsize, tick_fontsize):
     # (1) Parity (first n)
-    # ----------------------
-    ax = axes[0, 0]
 
     # Build tidy dataframe for seaborn (Polars -> Pandas)
     df_plot = df.unpivot(index=[cfg.y_key]).with_columns(pl.col("variable")).to_pandas()
@@ -218,6 +206,36 @@ def make_summary_figure(
     ax.set_xlabel("MLIP $\\mathrm{E}_{ads}$ (eV)", fontsize=fontsize)
     ax.set_ylabel(f"{cfg.y_key} $\\mathrm{{E}}_{{ads}}$ (eV)", fontsize=fontsize)
     ax.tick_params(axis="both", which="major", labelsize=tick_fontsize)
+
+
+def _plot_panel_d(ax, cfg, results, fontsize, tick_fontsize):
+    # (4) Bar plot summary
+    if "summary" in results and "bar" in results["summary"]:
+        b = results["summary"]["bar"]
+        ax.bar(b["x"], b["y"], color="#FF6600", yerr=b["yerr"], alpha=0.8, capsize=4)
+        ax.set_ylim(0.0, max(b["y"]) * 1.3)
+        ax.set_xlabel(b["x_label"], fontsize=fontsize)
+        ax.set_ylabel(b["y_label"], fontsize=fontsize)
+        ax.tick_params(axis="both", which="major", labelsize=tick_fontsize)
+    else:
+        ax.set_visible(False)
+
+
+def make_summary_figure(
+    cfg, df, results, filename="n_shot_summary.png", fontsize=14, tick_fontsize=14
+):
+    """
+    Combine all main plots (first parity, final parity, final histogram, bar summary)
+    into one 2x2 figure.
+    """
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    plt.subplots_adjust(wspace=0.3, hspace=0.35)
+
+    # ----------------------
+    # (1) Parity (first n)
+    # ----------------------
+    ax = axes[0, 0]
+    _plot_panel_a(ax, cfg, df, fontsize, tick_fontsize)
 
     # ----------------------
     # (2) Parity (final n)
@@ -341,16 +359,8 @@ def make_summary_figure(
     # ----------------------
     # (4) Bar plot summary
     # ----------------------
-    if "summary" in results and "bar" in results["summary"]:
-        b = results["summary"]["bar"]
-        ax = axes[1, 1]
-        ax.bar(b["x"], b["y"], color="#FF6600", yerr=b["yerr"], alpha=0.8, capsize=4)
-        ax.set_ylim(0.0, max(b["y"]) * 1.3)
-        ax.set_xlabel(b["x_label"], fontsize=fontsize)
-        ax.set_ylabel(b["y_label"], fontsize=fontsize)
-        ax.tick_params(axis="both", which="major", labelsize=tick_fontsize)
-    else:
-        axes[1, 1].set_visible(False)
+    ax = axes[1, 1]
+    _plot_panel_d(ax, cfg, results, fontsize, tick_fontsize)
 
     # Save and show
     plt.tight_layout()
@@ -373,3 +383,40 @@ def make_summary_figure(
     plt.show()
 
     print(f"Saved combined figure to {filename}")
+
+
+def make_summary_figure_ad(
+    cfg,
+    df,
+    results,
+    filename="n_shot_summary_ad.png",
+    fontsize=14,
+    tick_fontsize=14,
+):
+    """
+    Create a two-panel figure with only panel a (first parity) and panel d (bar summary).
+    """
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5.5))
+    plt.subplots_adjust(wspace=0.35)
+
+    _plot_panel_a(axes[0], cfg, df, fontsize, tick_fontsize)
+    _plot_panel_d(axes[1], cfg, results, fontsize, tick_fontsize)
+
+    plt.tight_layout()
+
+    panel_labels = ["a)", "b)"]
+    x_offset = -0.04
+    y_offset = 0.05
+    positions = [
+        (0.05 + x_offset, 0.95 + y_offset),
+        (0.55 + x_offset, 0.95 + y_offset),
+    ]
+    for label, (x, y) in zip(panel_labels, positions):
+        fig.text(
+            x, y, label, fontsize=fontsize + 2, fontweight="bold", va="top", ha="left"
+        )
+
+    plt.savefig(filename, dpi=300, bbox_inches="tight")
+    plt.show()
+
+    print(f"Saved panel a+d figure to {filename}")
