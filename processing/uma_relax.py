@@ -1,4 +1,5 @@
-import argparse
+from __future__ import annotations
+
 from ase import Atoms
 import json
 from pathlib import Path
@@ -10,6 +11,12 @@ from fairchem.core.datasets import AseDBDataset
 from fairchem.core.units.mlip_unit import load_predict_unit
 from fairchem.core import FAIRChemCalculator
 from fairchem.core.components.calculate.relaxation_runner import RelaxationRunner
+
+# Python 3.11+ has tomllib in stdlib; older needs tomli.
+try:
+    import tomllib  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover
+    import tomli as tomllib  # type: ignore
 
 
 def decode_ndarray(field):
@@ -83,19 +90,35 @@ def load_initial_energies(src_path: str, dev_run: bool):
     return E0, atoms_list
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--src", default="relaxed_mamun_oh.extxyz")
-    parser.add_argument("--output", default=None)
-    parser.add_argument("--dev-run", action="store_true")
-    args = parser.parse_args()
+def load_config(config_path: str | Path = "config.toml") -> dict:
+    """
+    Load run configuration from a TOML file.
+    """
+    path = Path(config_path)
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Config file not found: {path}\n"
+            f"Create it (see example below) or set CONFIG_TOML env var."
+        )
+    with path.open("rb") as f:
+        return tomllib.load(f)
 
-    src_path = args.src
-    config = {"src": ensure_ase_db(src_path, args.dev_run)}
+
+def main() -> None:
+    cfg = load_config("config.toml")
+
+    # Keep defaults identical to argparse defaults in your original script
+    src_path = cfg.get("src", "relaxed_mamun_oh.extxyz")
+    output_path = cfg.get("output", None)
+    dev_run = bool(cfg.get("dev_run", False))
+    device = cfg.get("device", "cuda")
+    mlip_path = cfg.get("mlip_path", None)
+
+    config = {"src": ensure_ase_db(src_path, dev_run)}
     dataset = AseDBDataset(config=config)
     predictor = load_predict_unit(
-        path="/scratch/bchg/averyhill/github/model-mash/data/experts/uma-s-1p1.pt",
-        device="cuda",
+        path=mlip_path,
+        device=device,
     )
     calc = FAIRChemCalculator(predictor, task_name="oc20")
     runner = RelaxationRunner(
@@ -104,7 +127,7 @@ def main() -> None:
         calculate_properties=[],
     )
     results = runner.calculate()
-    E0_map, atoms_in = load_initial_energies(src_path, args.dev_run)
+    E0_map, atoms_in = load_initial_energies(src_path, dev_run)
 
     relaxed_atoms = []
     for i, r in enumerate(results):
@@ -134,7 +157,7 @@ def main() -> None:
 
         relaxed_atoms.append(atoms)
 
-    write("uma_relaxed.extxyz", relaxed_atoms, format="extxyz")
+    write(cfg.get("output", None), relaxed_atoms, format="extxyz")
 
 
 if __name__ == "__main__":

@@ -1,1 +1,3 @@
-fairchem
+toml
+pandas
+fairchem-core==2.3.0
