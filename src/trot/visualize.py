@@ -401,11 +401,18 @@ def plot_calibration_curve(
 
     ideal = np.linspace(0, 1, 100)
     line1 = ax.errorbar(
-        confidence_levels, coverages, yerr=coverage_stds, fmt="o-", label="Model", capsize=4
+        confidence_levels,
+        coverages,
+        yerr=coverage_stds,
+        fmt="o-",
+        label="Model",
+        capsize=4,
     )
     (line2,) = ax.plot(ideal, ideal, linestyle="--", color="black", label="Ideal")
 
-    legend1 = ax.legend(handles=[line1, line2], loc="upper left", fontsize=fontsize * 0.8)
+    legend1 = ax.legend(
+        handles=[line1, line2], loc="upper left", fontsize=fontsize * 0.8
+    )
     ax.add_artist(legend1)
 
     miscalibration_area = get_miscalibration_area(confidence_levels, coverages)
@@ -435,7 +442,9 @@ def plot_sharpness(
     ax.set_ylabel("Frequency", fontsize=fontsize)
 
     sharpness = float(np.mean(y_pred_std))
-    dispersion = float(np.std(y_pred_std) / sharpness) if sharpness != 0 else float("nan")
+    dispersion = (
+        float(np.std(y_pred_std) / sharpness) if sharpness != 0 else float("nan")
+    )
 
     ax.axvline(
         sharpness,
@@ -445,7 +454,7 @@ def plot_sharpness(
         label=f"Sha = {sharpness:.3f} eV",
     )
     ax.set_ylim(top=ax.get_ylim()[1] * 1.4)
-    ax.plot([], [], " ", label=fr"$C_{{V}}$ = {dispersion:.3f}")
+    ax.plot([], [], " ", label=rf"$C_{{V}}$ = {dispersion:.3f}")
     ax.legend(fontsize=fontsize * 0.6)
     ax.tick_params(
         axis="both",
@@ -541,32 +550,48 @@ def make_uncertainty_summary_figure(
         n_values = np.asarray(sharpness_summary["n_values"])
         sharpness_mean = np.asarray(sharpness_summary["sharpness_mean"])
         sharpness_std = np.asarray(sharpness_summary["sharpness_std"])
-        ax.errorbar(n_values, sharpness_mean, yerr=sharpness_std, fmt="o-", capsize=4)
+        ax.bar(
+            n_values,
+            sharpness_mean,
+            yerr=sharpness_std,
+            color=(81 / 255, 140 / 255, 180 / 255, 1.0),
+            edgecolor="black",
+            capsize=4,
+            error_kw={"ecolor": "black", "elinewidth": 1.5},
+        )
         ax.set_xlabel("Number of holdouts", fontsize=fontsize)
         ax.set_ylabel("Sharpness (eV)", fontsize=fontsize)
         ax.tick_params(axis="both", which="major", labelsize=tick_fontsize)
 
     plt.tight_layout()
 
+    label_dx = -0.01
+    label_dy = 0.03
     if use_sharpness_panel:
         panel_labels = ["a)", "b)", "c)", "d)"]
         positions = [
-            (0.05, 0.96),
-            (0.52, 0.96),
-            (0.05, 0.48),
-            (0.52, 0.48),
+            (0.05 + label_dx, 0.96 + label_dy),
+            (0.52 + label_dx, 0.96 + label_dy),
+            (0.05 + label_dx, 0.48 + label_dy),
+            (0.52 + label_dx, 0.48 + label_dy),
         ]
     else:
         panel_labels = ["a)", "b)", "c)"]
         positions = [
-            (0.05 - 0.045, 0.95 + 0.05),
-            (0.40 - 0.045, 0.95 + 0.05),
-            (0.75 - 0.045, 0.95 + 0.05),
+            (0.05 - 0.045 + label_dx, 0.95 + 0.05 + label_dy),
+            (0.40 - 0.045 + label_dx, 0.95 + 0.05 + label_dy),
+            (0.75 - 0.045 + label_dx, 0.95 + 0.05 + label_dy),
         ]
 
     for label, (x, y_pos) in zip(panel_labels, positions):
         fig.text(
-            x, y_pos, label, fontsize=fontsize + 2, fontweight="bold", va="top", ha="left"
+            x,
+            y_pos,
+            label,
+            fontsize=fontsize + 2,
+            fontweight="bold",
+            va="top",
+            ha="left",
         )
 
     plt.savefig(filename, dpi=300, bbox_inches="tight")

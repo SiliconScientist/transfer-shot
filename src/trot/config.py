@@ -37,6 +37,7 @@ class Config(BaseModel):
     remove_high_variance: bool
     variance_threshold: float
     max_samples: int
+    max_bar_plot_samples: int
     linearize: bool
     removal_iterations: int
     std_factor: int

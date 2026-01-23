@@ -331,19 +331,31 @@ def n_shot(
             )
 
     # Summary (for bar plot)
+    max_bar_samples = min(cfg.max_bar_plot_samples, max_samples)
+    bar_mask = [n_val <= max_bar_samples for n_val in summary_ns]
+    bar_ns = [n for n, keep in zip(summary_ns, bar_mask) if keep]
+    bar_rmse_mean = [v for v, keep in zip(rmse_mean_list, bar_mask) if keep]
+    bar_rmse_std = [v for v, keep in zip(rmse_std_list, bar_mask) if keep]
+    bar_rmse_best_fit_mean = [
+        v for v, keep in zip(rmse_best_fit_mean_list, bar_mask) if keep
+    ]
+    bar_rmse_best_fit_std = [
+        v for v, keep in zip(rmse_best_fit_std_list, bar_mask) if keep
+    ]
+
     results["summary"] = {
         "n_values": summary_ns,
         "bar": {
-            "x": summary_ns,
-            "y": rmse_mean_list,
-            "yerr": rmse_std_list,
+            "x": bar_ns,
+            "y": bar_rmse_mean,
+            "yerr": bar_rmse_std,
             "x_label": "Number of holdouts",
             "y_label": "Mean $\\mathrm{{RMSE}}_{{parity}}$ (eV)",
         },
         "best_fit_bar": {
-            "x": summary_ns,
-            "y": rmse_best_fit_mean_list,
-            "yerr": rmse_best_fit_std_list,
+            "x": bar_ns,
+            "y": bar_rmse_best_fit_mean,
+            "yerr": bar_rmse_best_fit_std,
             "x_label": "Number of holdouts",
             "y_label": "Mean Best-Fit RMSE (eV)",
         },
