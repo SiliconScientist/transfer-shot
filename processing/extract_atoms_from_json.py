@@ -68,6 +68,9 @@ def main() -> None:
         if not isinstance(raw, dict):
             continue
 
+        # Grab the adsorption energy you actually care about
+        ref_ads_eng = reaction_obj.get("ref_ads_eng", None)
+
         for raw_key, comp in raw.items():
             if not is_bound_component(raw_key):
                 n_skipped += 1
@@ -83,12 +86,12 @@ def main() -> None:
             try:
                 atoms = ase_atoms_from_atoms_json_str(comp["atoms_json"])
 
-                # provenance metadata (goes into extxyz comment)
-                atoms.info["reaction_key"] = reaction_key
-                atoms.info["raw_name"] = raw_key  # e.g., H2Ostar
-                atoms.info["adsorbate"] = raw_key[:-4]  # strip trailing 'star' -> 'H2O'
+                # Only store ref_ads_eng, mapped to extxyz "energy"
+                if ref_ads_eng is not None:
+                    atoms.info["energy"] = float(ref_ads_eng)
 
                 frames.append(atoms)
+
             except Exception as e:
                 n_failed += 1
                 print(
