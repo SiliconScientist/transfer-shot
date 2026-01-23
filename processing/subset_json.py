@@ -23,11 +23,12 @@ cfg = load_config("config.toml")
 subset_json_cfg = cfg.get("subset_json", {})
 infile = subset_json_cfg.get("input", "")
 outfile = subset_json_cfg.get("output", "")
+adsorbate = subset_json_cfg.get("adsorbate", "H2O")
 
 with open(infile, "r") as f:
     data = json.load(f)
 subset_data = {}
-rxn_pattern = re.compile(r"->\s*H2O\*")
+rxn_pattern = re.compile(rf"->\s*{adsorbate}\*")
 for rxn_key, entry in data.items():
     if not isinstance(entry, dict):
         continue
