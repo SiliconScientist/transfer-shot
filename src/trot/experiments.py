@@ -13,7 +13,103 @@ from trot.visualize import (
     make_bar_plot,
     make_parity_plot,
     make_histogram_plot,
+    make_uncertainty_summary_figure,
 )
+
+
+def _normal_ppf(p: np.ndarray) -> np.ndarray:
+    """
+    Approximate inverse CDF for a standard normal distribution.
+    """
+    p = np.asarray(p, dtype=float)
+    p = np.clip(p, 1e-12, 1 - 1e-12)
+
+    a = [
+        -3.969683028665376e01,
+        2.209460984245205e02,
+        -2.759285104469687e02,
+        1.383577518672690e02,
+        -3.066479806614716e01,
+        2.506628277459239e00,
+    ]
+    b = [
+        -5.447609879822406e01,
+        1.615858368580409e02,
+        -1.556989798598866e02,
+        6.680131188771972e01,
+        -1.328068155288572e01,
+    ]
+    c = [
+        -7.784894002430293e-03,
+        -3.223964580411365e-01,
+        -2.400758277161838e00,
+        -2.549732539343734e00,
+        4.374664141464968e00,
+        2.938163982698783e00,
+    ]
+    d = [
+        7.784695709041462e-03,
+        3.224671290700398e-01,
+        2.445134137142996e00,
+        3.754408661907416e00,
+    ]
+
+    plow = 0.02425
+    phigh = 1 - plow
+
+    x = np.empty_like(p, dtype=float)
+    mask_low = p < plow
+    mask_high = p > phigh
+    mask_mid = ~(mask_low | mask_high)
+
+    if np.any(mask_low):
+        q = np.sqrt(-2 * np.log(p[mask_low]))
+        x[mask_low] = (
+            (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5])
+            / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1)
+        )
+
+    if np.any(mask_mid):
+        q = p[mask_mid] - 0.5
+        r = q * q
+        x[mask_mid] = (
+            (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5])
+            * q
+            / (
+                (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1)
+            )
+        )
+
+    if np.any(mask_high):
+        q = np.sqrt(-2 * np.log(1 - p[mask_high]))
+        x[mask_high] = -(
+            (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5])
+            / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1)
+        )
+
+    return x
+
+
+def z_score_from_confidence(confidence_level: np.ndarray) -> np.ndarray:
+    """
+    Return z-score for a two-sided normal interval with given confidence.
+    """
+    p = 0.5 + np.asarray(confidence_level, dtype=float) / 2.0
+    return _normal_ppf(p)
+
+
+def get_calibration_data(
+    residuals: np.ndarray,
+    y_pred_std: np.ndarray,
+    calibration_factor: float,
+    confidence_levels: np.ndarray = np.linspace(0.05, 0.95, 19),
+) -> tuple[np.ndarray, np.ndarray]:
+    z_scores = z_score_from_confidence(confidence_levels)
+    thresholds = z_scores[:, None] * y_pred_std[None, :] * calibration_factor
+    residuals_abs = np.abs(residuals)[None, :]
+    within_interval = residuals_abs <= thresholds
+    coverages = within_interval.mean(axis=1)
+    return confidence_levels, coverages
 
 
 def get_avg_std(
@@ -275,6 +371,118 @@ def n_shot(
                 y_label="DFT energy (eV)",
                 inset=p["inset"],
             )
+
+    return results
+
+
+def uncertainty_analysis(
+    cfg: Config,
+    df: pl.DataFrame,
+    n: int,
+    df_holdout: Union[pl.DataFrame, None] = None,
+    max_combos: int = 1000,
+    calibration_factor: float = 1.0,
+    confidence_levels: np.ndarray = np.linspace(0.05, 0.95, 19),
+    linearize: bool = False,
+    plot_now: bool = True,
+    seed: Union[int, None] = 0,
+    summary_filename: Union[str, None] = None,
+    fontsize: int = 12,
+    tick_fontsize: int = 14,
+    subset_size: Union[int, None] = None,
+) -> Dict[str, Any]:
+    if seed is not None:
+        random.seed(seed)
+        np.random.seed(seed)
+
+    X_full, y_full = df_to_numpy(df=df, y_col=cfg.y_key)
+    num_samples = df_holdout.height if df_holdout is not None else df.height
+
+    if n == 0:
+        combos = [tuple()]
+    else:
+        all_indices = list(range(num_samples))
+        combos = [tuple(sorted(random.sample(all_indices, n))) for _ in range(max_combos)]
+
+    coverage_lists = []
+    parity_snapshot = None
+
+    for holdout_indices in combos:
+        X, y = X_full.copy(), y_full.copy()
+        if df_holdout is not None:
+            X_source, y_source = df_to_numpy(df=df_holdout, y_col=cfg.y_key)
+            _, _, X_holdout, y_holdout = get_holdout_split(
+                X=X_source, y=y_source, holdout_indices=holdout_indices
+            )
+        else:
+            X, y, X_holdout, y_holdout = get_holdout_split(
+                X=X, y=y, holdout_indices=holdout_indices
+            )
+
+        if n >= 1:
+            X = modify_data(
+                X=X,
+                X_holdout=X_holdout,
+                y_holdout=y_holdout,
+                linearize=linearize,
+            )
+
+        for _ in range(cfg.removal_iterations):
+            X = remove_outliers(X, std_factor=cfg.std_factor)
+
+        y_preds = np.nanmean(X, axis=1)
+        y_pred_std = np.nanstd(X, axis=1)
+        residuals = y - y_preds
+        _, coverages = get_calibration_data(
+            y_pred_std=y_pred_std,
+            residuals=residuals,
+            calibration_factor=calibration_factor,
+            confidence_levels=confidence_levels,
+        )
+        coverage_lists.append(coverages)
+
+        if parity_snapshot is None:
+            parity_snapshot = {
+                "y": y,
+                "y_preds": y_preds,
+                "y_pred_std": y_pred_std,
+            }
+
+    average_coverages = np.mean(coverage_lists, axis=0)
+    coverage_stds = np.std(coverage_lists, axis=0)
+
+    results = {
+        "settings": {
+            "n": n,
+            "max_combos": max_combos,
+            "calibration_factor": calibration_factor,
+            "linearize": linearize,
+            "removal_iterations": cfg.removal_iterations,
+            "std_factor": cfg.std_factor,
+            "y_key": cfg.y_key,
+        },
+        "parity": parity_snapshot,
+        "calibration": {
+            "confidence_levels": confidence_levels,
+            "coverages": average_coverages,
+            "coverage_stds": coverage_stds,
+        },
+    }
+
+    if plot_now and parity_snapshot is not None:
+        make_uncertainty_summary_figure(
+            cfg=cfg,
+            y=parity_snapshot["y"],
+            y_preds=parity_snapshot["y_preds"],
+            y_pred_std=parity_snapshot["y_pred_std"],
+            confidence_levels=confidence_levels,
+            coverages=average_coverages,
+            coverage_stds=coverage_stds,
+            filename=summary_filename,
+            fontsize=fontsize,
+            tick_fontsize=tick_fontsize,
+            subset_size=subset_size,
+        )
 
     return results
 

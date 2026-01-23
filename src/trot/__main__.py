@@ -5,7 +5,12 @@ from functools import partial
 
 from trot.config import Config
 from trot.processing import get_data
-from trot.experiments import get_recommendation, greedy_cost, n_shot
+from trot.experiments import (
+    get_recommendation,
+    greedy_cost,
+    n_shot,
+    uncertainty_analysis,
+)
 from trot.visualize import make_summary_figure
 
 
@@ -31,6 +36,14 @@ def main():
         df=df,
         results=results,
         filename="data/results/visualizations/n_shot_summary.png",
+    )
+    uncertainty_analysis(
+        cfg=cfg,
+        df=df,
+        n=cfg.max_samples,
+        linearize=cfg.linearize,
+        seed=cfg.random_seed,
+        summary_filename="data/results/visualizations/uncertainty_summary.png",
     )
     # cost_fn = partial(greedy_cost, alpha=0.75)
     # recommendation_index = get_recommendation(

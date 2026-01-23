@@ -1,4 +1,6 @@
+from pathlib import Path
 from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
 import seaborn as sns
 import numpy as np
 import matplotlib.pyplot as plt
@@ -372,4 +374,175 @@ def make_summary_figure(
     plt.savefig(filename, dpi=300, bbox_inches="tight")
     plt.show()
 
+    print(f"Saved combined figure to {filename}")
+
+
+def get_miscalibration_area(
+    confidence_levels: np.ndarray, coverages: np.ndarray
+) -> float:
+    """
+    Compute the area between the calibration curve and the ideal y=x line.
+    """
+    confidence_levels = np.asarray(confidence_levels, dtype=float)
+    coverages = np.asarray(coverages, dtype=float)
+    return float(np.trapz(np.abs(coverages - confidence_levels), confidence_levels))
+
+
+def plot_calibration_curve(
+    confidence_levels: np.ndarray,
+    coverages: np.ndarray,
+    coverage_stds: np.ndarray,
+    fontsize: int = 12,
+    tick_fontsize: Union[int, None] = None,
+    ax: plt.Axes | None = None,
+) -> None:
+    if ax is None:
+        _, ax = plt.subplots(figsize=(6, 6))
+
+    ideal = np.linspace(0, 1, 100)
+    line1 = ax.errorbar(
+        confidence_levels, coverages, yerr=coverage_stds, fmt="o-", label="Model", capsize=4
+    )
+    (line2,) = ax.plot(ideal, ideal, linestyle="--", color="black", label="Ideal")
+
+    legend1 = ax.legend(handles=[line1, line2], loc="upper left", fontsize=fontsize * 0.8)
+    ax.add_artist(legend1)
+
+    miscalibration_area = get_miscalibration_area(confidence_levels, coverages)
+    phantom_patch = Patch(color="none", label=f"MisCal = {miscalibration_area:.3f}")
+    ax.legend(handles=[phantom_patch], loc="lower right", fontsize=fontsize * 0.7)
+
+    ax.set_xlabel("Expected Confidence Level", fontsize=fontsize)
+    ax.set_ylabel("Observed Confidence Level", fontsize=fontsize)
+    ax.tick_params(
+        axis="both",
+        which="major",
+        labelsize=fontsize if tick_fontsize is None else tick_fontsize,
+    )
+
+
+def plot_sharpness(
+    y_pred_std: np.ndarray,
+    fontsize: int = 12,
+    tick_fontsize: Union[int, None] = None,
+    ax: plt.Axes | None = None,
+) -> None:
+    if ax is None:
+        _, ax = plt.subplots(figsize=(6, 4))
+
+    sns.histplot(y_pred_std, bins=20, kde=False, ax=ax)
+    ax.set_xlabel("Standard Deviation (eV)", fontsize=fontsize)
+    ax.set_ylabel("Frequency", fontsize=fontsize)
+
+    sharpness = float(np.mean(y_pred_std))
+    dispersion = float(np.std(y_pred_std) / sharpness) if sharpness != 0 else float("nan")
+
+    ax.axvline(
+        sharpness,
+        color="red",
+        linestyle="--",
+        linewidth=2,
+        label=f"Sha = {sharpness:.3f} eV",
+    )
+    ax.set_ylim(top=ax.get_ylim()[1] * 1.4)
+    ax.plot([], [], " ", label=fr"$C_{{V}}$ = {dispersion:.3f}")
+    ax.legend(fontsize=fontsize * 0.6)
+    ax.tick_params(
+        axis="both",
+        which="major",
+        labelsize=fontsize if tick_fontsize is None else tick_fontsize,
+    )
+
+
+def make_uncertainty_summary_figure(
+    cfg: Config,
+    y: np.ndarray,
+    y_preds: np.ndarray,
+    y_pred_std: np.ndarray,
+    confidence_levels: np.ndarray,
+    coverages: np.ndarray,
+    coverage_stds: np.ndarray,
+    filename: Union[str, Path, None] = None,
+    fontsize: int = 12,
+    tick_fontsize: int = 14,
+    subset_size: Union[int, None] = None,
+) -> None:
+    """
+    Combine parity, calibration curve, and sharpness into a single 1x3 figure.
+    """
+    if filename is None:
+        filename = cfg.paths.results.visualizations / "uncertainty_summary.png"
+
+    fig, axes = plt.subplots(1, 3, figsize=(12, 4))
+    plt.subplots_adjust(wspace=0.3, hspace=0.35)
+
+    # ----------------------
+    # (1) Parity with error bars
+    # ----------------------
+    ax = axes[0]
+    x_grid = np.linspace(float(np.min(y_preds)), float(np.max(y_preds)), 100)
+    ax.plot(x_grid, x_grid, color="black", linewidth=2, linestyle="--")
+    model = LinearRegression().fit(y_preds.reshape(-1, 1), y.reshape(-1, 1))
+    ax.plot(x_grid, model.predict(x_grid.reshape(-1, 1)), color="blue", linewidth=2)
+
+    n_subset = subset_size if subset_size is not None else len(y_preds)
+    n_subset = min(n_subset, len(y_preds))
+    idx = np.random.choice(len(y_preds), size=n_subset, replace=False)
+    y_subset = y[idx]
+    y_preds_subset = y_preds[idx]
+    y_pred_std_subset = y_pred_std[idx]
+
+    ax.errorbar(
+        y_preds_subset,
+        y_subset,
+        yerr=y_pred_std_subset,
+        color="blue",
+        fmt="o",
+        capsize=5,
+        alpha=0.3,
+        markeredgecolor="none",
+    )
+    ax.set_xlabel("Ensemble $\\mathrm{E}_{ads}$ (eV)", fontsize=fontsize)
+    ax.set_ylabel("DFT $\\mathrm{E}_{ads}$ (eV)", fontsize=fontsize)
+    ax.tick_params(axis="both", which="major", labelsize=tick_fontsize)
+
+    # ----------------------
+    # (2) Calibration curve
+    # ----------------------
+    ax = axes[1]
+    plot_calibration_curve(
+        confidence_levels=confidence_levels,
+        coverages=coverages,
+        coverage_stds=coverage_stds,
+        fontsize=fontsize,
+        tick_fontsize=tick_fontsize,
+        ax=ax,
+    )
+
+    # ----------------------
+    # (3) Sharpness histogram
+    # ----------------------
+    ax = axes[2]
+    plot_sharpness(
+        y_pred_std=y_pred_std, fontsize=fontsize, tick_fontsize=tick_fontsize, ax=ax
+    )
+
+    plt.tight_layout()
+
+    panel_labels = ["a)", "b)", "c)"]
+    x_offset = -0.045
+    y_offset = 0.05
+    positions = [
+        (0.05 + x_offset, 0.95 + y_offset),
+        (0.40 + x_offset, 0.95 + y_offset),
+        (0.75 + x_offset, 0.95 + y_offset),
+    ]
+
+    for label, (x, y_pos) in zip(panel_labels, positions):
+        fig.text(
+            x, y_pos, label, fontsize=fontsize + 2, fontweight="bold", va="top", ha="left"
+        )
+
+    plt.savefig(filename, dpi=300, bbox_inches="tight")
+    plt.show()
     print(f"Saved combined figure to {filename}")
