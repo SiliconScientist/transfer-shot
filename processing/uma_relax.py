@@ -107,12 +107,16 @@ def load_config(config_path: str | Path = "config.toml") -> dict:
 def main() -> None:
     cfg = load_config("config.toml")
 
-    # Keep defaults identical to argparse defaults in your original script
-    src_path = cfg.get("src", "relaxed_mamun_oh.extxyz")
-    output_path = cfg.get("output", None)
+    # top-level flags
     dev_run = bool(cfg.get("dev_run", False))
-    device = cfg.get("device", "cuda")
-    mlip_path = cfg.get("mlip_path", None)
+
+    # uma_relax section
+    uma_cfg = cfg.get("uma_relax", {})
+
+    src_path = uma_cfg.get("input", "relaxed_mamun_h2o.extxyz")
+    output_path = uma_cfg.get("output", None)
+    mlip_path = uma_cfg.get("mlip_path", None)
+    device = uma_cfg.get("device", "cuda")
 
     config = {"src": ensure_ase_db(src_path, dev_run)}
     dataset = AseDBDataset(config=config)
@@ -157,7 +161,7 @@ def main() -> None:
 
         relaxed_atoms.append(atoms)
 
-    write(cfg.get("output", None), relaxed_atoms, format="extxyz")
+    write(output_path, relaxed_atoms, format="extxyz")
 
 
 if __name__ == "__main__":

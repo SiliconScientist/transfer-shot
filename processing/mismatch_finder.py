@@ -1,8 +1,10 @@
+import tomllib
 import numpy as np
 from ase.io import read, write
 from typing import Iterable, List, Optional
 from pymatgen.io.ase import AseAtomsAdaptor
 from ase.calculators.singlepoint import SinglePointCalculator
+from pathlib import Path
 
 
 def _min_image_displacements_pmg(
@@ -81,10 +83,28 @@ def compare_ase_lists_for_movement(
     return bad_idxs
 
 
-dft_atoms_list = read("data/raw/relaxed_mamun_oh.extxyz", index=":")
-energy_list = [atoms.get_potential_energy() for atoms in dft_atoms_list]
+def load_config(config_path: str | Path = "config.toml") -> dict:
+    """
+    Load run configuration from a TOML file.
+    """
+    path = Path(config_path)
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Config file not found: {path}\n"
+            f"Create it (see example below) or set CONFIG_TOML env var."
+        )
+    with path.open("rb") as f:
+        return tomllib.load(f)
 
-mlip_atoms_list = read("data/raw/uma_relaxed_mamun_oh.traj", index=":")
+
+cfg = load_config("config.toml")
+
+mismatch_finding_cfg = cfg.get("mismatch_finder", {})
+mlip_extxyz = mismatch_finding_cfg.get("mlip_extxyz", "")
+dft_extxyz = mismatch_finding_cfg.get("dft_extxyz", "")
+dft_atoms_list = read(dft_extxyz, index=":")
+energy_list = [atoms.get_potential_energy() for atoms in dft_atoms_list]
+mlip_atoms_list = read(mlip_extxyz, index=":")
 print(len(dft_atoms_list), len(mlip_atoms_list))
 atoms_list = []
 for atoms, energy in zip(mlip_atoms_list, energy_list):
