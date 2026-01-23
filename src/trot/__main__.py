@@ -44,6 +44,7 @@ def main():
         linearize=cfg.linearize,
         seed=cfg.random_seed,
         summary_filename="data/results/visualizations/uncertainty_summary.png",
+        sharpness_max_samples=cfg.max_samples,
     )
     # cost_fn = partial(greedy_cost, alpha=0.75)
     # recommendation_index = get_recommendation(

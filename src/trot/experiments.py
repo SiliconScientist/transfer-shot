@@ -390,6 +390,7 @@ def uncertainty_analysis(
     fontsize: int = 12,
     tick_fontsize: int = 14,
     subset_size: Union[int, None] = None,
+    sharpness_max_samples: Union[int, None] = None,
 ) -> Dict[str, Any]:
     if seed is not None:
         random.seed(seed)
@@ -451,6 +452,57 @@ def uncertainty_analysis(
     average_coverages = np.mean(coverage_lists, axis=0)
     coverage_stds = np.std(coverage_lists, axis=0)
 
+    sharpness_summary = None
+    if sharpness_max_samples is not None:
+        sharpness_values = []
+        sharpness_stds = []
+        n_values = list(range(1, sharpness_max_samples + 1))
+        for n_holdout in n_values:
+            if n_holdout == 0:
+                combos_n = [tuple()]
+            else:
+                all_indices = list(range(num_samples))
+                combos_n = [
+                    tuple(sorted(random.sample(all_indices, n_holdout)))
+                    for _ in range(max_combos)
+                ]
+
+            sharpness_list = []
+            for holdout_indices in combos_n:
+                X, y = X_full.copy(), y_full.copy()
+                if df_holdout is not None:
+                    X_source, y_source = df_to_numpy(df=df_holdout, y_col=cfg.y_key)
+                    _, _, X_holdout, y_holdout = get_holdout_split(
+                        X=X_source, y=y_source, holdout_indices=holdout_indices
+                    )
+                else:
+                    X, y, X_holdout, y_holdout = get_holdout_split(
+                        X=X, y=y, holdout_indices=holdout_indices
+                    )
+
+                if n_holdout >= 1:
+                    X = modify_data(
+                        X=X,
+                        X_holdout=X_holdout,
+                        y_holdout=y_holdout,
+                        linearize=linearize,
+                    )
+
+                for _ in range(cfg.removal_iterations):
+                    X = remove_outliers(X, std_factor=cfg.std_factor)
+
+                y_pred_std = np.nanstd(X, axis=1)
+                sharpness_list.append(float(np.mean(y_pred_std)))
+
+            sharpness_values.append(float(np.mean(sharpness_list)))
+            sharpness_stds.append(float(np.std(sharpness_list)))
+
+        sharpness_summary = {
+            "n_values": n_values,
+            "sharpness_mean": sharpness_values,
+            "sharpness_std": sharpness_stds,
+        }
+
     results = {
         "settings": {
             "n": n,
@@ -467,6 +519,7 @@ def uncertainty_analysis(
             "coverages": average_coverages,
             "coverage_stds": coverage_stds,
         },
+        "sharpness_summary": sharpness_summary,
     }
 
     if plot_now and parity_snapshot is not None:
@@ -478,6 +531,7 @@ def uncertainty_analysis(
             confidence_levels=confidence_levels,
             coverages=average_coverages,
             coverage_stds=coverage_stds,
+            sharpness_summary=sharpness_summary,
             filename=summary_filename,
             fontsize=fontsize,
             tick_fontsize=tick_fontsize,

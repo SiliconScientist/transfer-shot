@@ -462,24 +462,30 @@ def make_uncertainty_summary_figure(
     confidence_levels: np.ndarray,
     coverages: np.ndarray,
     coverage_stds: np.ndarray,
+    sharpness_summary: Union[dict, None] = None,
     filename: Union[str, Path, None] = None,
     fontsize: int = 12,
     tick_fontsize: int = 14,
     subset_size: Union[int, None] = None,
 ) -> None:
     """
-    Combine parity, calibration curve, and sharpness into a single 1x3 figure.
+    Combine parity, calibration curve, sharpness, and optional sharpness-by-n panel.
     """
     if filename is None:
         filename = cfg.paths.results.visualizations / "uncertainty_summary.png"
 
-    fig, axes = plt.subplots(1, 3, figsize=(12, 4))
-    plt.subplots_adjust(wspace=0.3, hspace=0.35)
+    use_sharpness_panel = sharpness_summary is not None
+    if use_sharpness_panel:
+        fig, axes = plt.subplots(2, 2, figsize=(12, 9))
+        plt.subplots_adjust(wspace=0.3, hspace=0.35)
+    else:
+        fig, axes = plt.subplots(1, 3, figsize=(12, 4))
+        plt.subplots_adjust(wspace=0.3, hspace=0.35)
 
     # ----------------------
     # (1) Parity with error bars
     # ----------------------
-    ax = axes[0]
+    ax = axes[0, 0] if use_sharpness_panel else axes[0]
     x_grid = np.linspace(float(np.min(y_preds)), float(np.max(y_preds)), 100)
     ax.plot(x_grid, x_grid, color="black", linewidth=2, linestyle="--")
     model = LinearRegression().fit(y_preds.reshape(-1, 1), y.reshape(-1, 1))
@@ -509,7 +515,7 @@ def make_uncertainty_summary_figure(
     # ----------------------
     # (2) Calibration curve
     # ----------------------
-    ax = axes[1]
+    ax = axes[0, 1] if use_sharpness_panel else axes[1]
     plot_calibration_curve(
         confidence_levels=confidence_levels,
         coverages=coverages,
@@ -522,21 +528,41 @@ def make_uncertainty_summary_figure(
     # ----------------------
     # (3) Sharpness histogram
     # ----------------------
-    ax = axes[2]
+    ax = axes[1, 0] if use_sharpness_panel else axes[2]
     plot_sharpness(
         y_pred_std=y_pred_std, fontsize=fontsize, tick_fontsize=tick_fontsize, ax=ax
     )
 
+    # ----------------------
+    # (4) Sharpness vs holdout samples
+    # ----------------------
+    if use_sharpness_panel:
+        ax = axes[1, 1]
+        n_values = np.asarray(sharpness_summary["n_values"])
+        sharpness_mean = np.asarray(sharpness_summary["sharpness_mean"])
+        sharpness_std = np.asarray(sharpness_summary["sharpness_std"])
+        ax.errorbar(n_values, sharpness_mean, yerr=sharpness_std, fmt="o-", capsize=4)
+        ax.set_xlabel("Number of holdouts", fontsize=fontsize)
+        ax.set_ylabel("Sharpness (eV)", fontsize=fontsize)
+        ax.tick_params(axis="both", which="major", labelsize=tick_fontsize)
+
     plt.tight_layout()
 
-    panel_labels = ["a)", "b)", "c)"]
-    x_offset = -0.045
-    y_offset = 0.05
-    positions = [
-        (0.05 + x_offset, 0.95 + y_offset),
-        (0.40 + x_offset, 0.95 + y_offset),
-        (0.75 + x_offset, 0.95 + y_offset),
-    ]
+    if use_sharpness_panel:
+        panel_labels = ["a)", "b)", "c)", "d)"]
+        positions = [
+            (0.05, 0.96),
+            (0.52, 0.96),
+            (0.05, 0.48),
+            (0.52, 0.48),
+        ]
+    else:
+        panel_labels = ["a)", "b)", "c)"]
+        positions = [
+            (0.05 - 0.045, 0.95 + 0.05),
+            (0.40 - 0.045, 0.95 + 0.05),
+            (0.75 - 0.045, 0.95 + 0.05),
+        ]
 
     for label, (x, y_pos) in zip(panel_labels, positions):
         fig.text(
