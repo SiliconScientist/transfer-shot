@@ -102,23 +102,20 @@ cfg = load_config("config.toml")
 mismatch_finding_cfg = cfg.get("mismatch_finder", {})
 mlip_extxyz = mismatch_finding_cfg.get("mlip_extxyz", "")
 dft_extxyz = mismatch_finding_cfg.get("dft_extxyz", "")
+normal_output = mismatch_finding_cfg.get("normal_output", True)
+anomalous_output = mismatch_finding_cfg.get("anomalous_output", True)
 dft_atoms_list = read(dft_extxyz, index=":")
 energy_list = [atoms.get_potential_energy() for atoms in dft_atoms_list]
 mlip_atoms_list = read(mlip_extxyz, index=":")
-print(len(dft_atoms_list), len(mlip_atoms_list))
 atoms_list = []
 for atoms, energy in zip(mlip_atoms_list, energy_list):
     atoms.calc = SinglePointCalculator(atoms, energy=energy)
     atoms_list.append(atoms)
-# DFT and MLIP lists (same length, same ordering)
 pairs_bad = compare_ase_lists_for_movement(
     dft_atoms_list, mlip_atoms_list, tol=0.35, rule="max"
 )
-# Obtain the inverse pairs (the good ones)
 pairs_good = [i for i in range(len(dft_atoms_list)) if i not in pairs_bad]
-
 bad_atoms_list = [atoms_list[i] for i in pairs_bad]
 good_atoms_list = [atoms_list[i] for i in pairs_good]
-
-write("data/processed/bad_pairs_mamun.traj", bad_atoms_list)
-write("data/processed/good_pairs_mamun.traj", good_atoms_list)
+write(normal_output, bad_atoms_list)
+write(anomalous_output, good_atoms_list)
