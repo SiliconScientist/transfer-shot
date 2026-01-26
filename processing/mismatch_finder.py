@@ -111,11 +111,11 @@ atoms_list = []
 for atoms, energy in zip(mlip_atoms_list, energy_list):
     atoms.calc = SinglePointCalculator(atoms, energy=energy)
     atoms_list.append(atoms)
-pairs_bad = compare_ase_lists_for_movement(
+anomalous_pairs = compare_ase_lists_for_movement(
     dft_atoms_list, mlip_atoms_list, tol=0.35, rule="max"
 )
-pairs_good = [i for i in range(len(dft_atoms_list)) if i not in pairs_bad]
-bad_atoms_list = [atoms_list[i] for i in pairs_bad]
-good_atoms_list = [atoms_list[i] for i in pairs_good]
-write(normal_output, bad_atoms_list)
-write(anomalous_output, good_atoms_list)
+normal_pairs = [i for i in range(len(dft_atoms_list)) if i not in anomalous_pairs]
+anomalous_atoms_list = [atoms_list[i] for i in anomalous_pairs]
+normal_atoms_list = [atoms_list[i] for i in normal_pairs]
+write(anomalous_output, anomalous_atoms_list)
+write(normal_output, normal_atoms_list)
