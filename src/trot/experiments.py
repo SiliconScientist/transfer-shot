@@ -65,9 +65,8 @@ def _normal_ppf(p: np.ndarray) -> np.ndarray:
     if np.any(mask_low):
         q = np.sqrt(-2 * np.log(p[mask_low]))
         x[mask_low] = (
-            (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5])
-            / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1)
-        )
+            ((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]
+        ) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1)
 
     if np.any(mask_mid):
         q = p[mask_mid] - 0.5
@@ -75,9 +74,7 @@ def _normal_ppf(p: np.ndarray) -> np.ndarray:
         x[mask_mid] = (
             (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5])
             * q
-            / (
-                (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1)
-            )
+            / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1)
         )
 
     if np.any(mask_high):
@@ -415,7 +412,9 @@ def uncertainty_analysis(
         combos = [tuple()]
     else:
         all_indices = list(range(num_samples))
-        combos = [tuple(sorted(random.sample(all_indices, n))) for _ in range(max_combos)]
+        combos = [
+            tuple(sorted(random.sample(all_indices, n))) for _ in range(max_combos)
+        ]
 
     coverage_lists = []
     parity_snapshot = None
@@ -589,7 +588,7 @@ def plot_candidates(
     plt.xlabel("Candidate Rank (by cost)")
     plt.ylabel("Binding Energy (eV)")
     plt.title("Top Candidates by Cost")
-    # plt.legend(fontsize=6)
+    plt.legend(fontsize=6)
     plt.tight_layout()
     plt.show()
 
@@ -607,7 +606,7 @@ def get_recommendation(
     )
     mean = np.nanmean(X, axis=1)
     std = np.nanstd(X, axis=1)
-    cost = cost_fn(mean, std, target=cfg.target, alpha=0.75)
+    cost = cost_fn(mean, std, target=cfg.target, alpha=0.4)
     plot_candidates(mean, std, cost, target=cfg.target)
     minimum_index = np.argmin(cost)
     return minimum_index

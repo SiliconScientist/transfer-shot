@@ -37,15 +37,15 @@ def main():
         results=results,
         filename="data/results/visualizations/n_shot_summary.png",
     )
-    uncertainty_analysis(
-        cfg=cfg,
-        df=df,
-        n=cfg.max_samples,
-        linearize=cfg.linearize,
-        seed=cfg.random_seed,
-        summary_filename="data/results/visualizations/uncertainty_summary.png",
-        sharpness_max_samples=cfg.max_bar_plot_samples,
-    )
+    # uncertainty_analysis(
+    #     cfg=cfg,
+    #     df=df,
+    #     n=cfg.max_samples,
+    #     linearize=cfg.linearize,
+    #     seed=cfg.random_seed,
+    #     summary_filename="data/results/visualizations/uncertainty_summary.png",
+    #     sharpness_max_samples=cfg.max_bar_plot_samples,
+    # )
     # cost_fn = partial(greedy_cost, alpha=0.75)
     # recommendation_index = get_recommendation(
     #     cfg=cfg,

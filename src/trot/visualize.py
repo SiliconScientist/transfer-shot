@@ -90,7 +90,7 @@ def make_bar_plot(
 ):
     plt.figure()
     plt.bar(x_axis, y_axis, color="#FF6600", yerr=yerr, capsize=6)
-    plt.ylim(0.09, max(y_axis) * 1.3)
+    plt.ylim(0.0, max(y_axis) * 1.3)
     plt.xlabel(xlabel=x_label, fontsize=fontsize)
     plt.xticks(np.arange(min(x_axis), max(x_axis) + 1, 1))
     plt.ylabel(ylabel=y_label, fontsize=fontsize, labelpad=10)
