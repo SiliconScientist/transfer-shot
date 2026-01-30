@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-from ase import Atoms
 import json
+import numpy as np
 from pathlib import Path
-
+from typing import Callable
+from functools import partial
+from ase import Atoms
 from ase.db import connect
 from ase.io import read, write
-import numpy as np
-from fairchem.core.datasets import AseDBDataset
+from ase.constraints import FixAtoms
+from fairchem.core.datasets.ase_datasets import AseAtomsDataset
 from fairchem.core.units.mlip_unit import load_predict_unit
 from fairchem.core import FAIRChemCalculator
 from fairchem.core.components.calculate.relaxation_runner import RelaxationRunner
@@ -104,6 +106,40 @@ def load_config(config_path: str | Path = "config.toml") -> dict:
         return tomllib.load(f)
 
 
+class InMemoryAtomsDataset(AseAtomsDataset):
+    def __init__(self, atoms_list, atoms_transform=None):
+        self.atoms_list = list(atoms_list)
+        super().__init__(config={}, atoms_transform=atoms_transform)
+
+    def _load_dataset_get_ids(self, config: dict) -> list[int]:
+        return list(range(len(self.atoms_list)))
+
+    def get_atoms(self, id: int):
+        return self.atoms_list[id]
+
+
+def constrain_atoms(atoms_list: list[Atoms], index_fn: Callable) -> list[Atoms]:
+    constrained_atoms_list = []
+    for atoms in atoms_list:
+        atoms.pbc = True
+        indices = index_fn(atoms)
+        atoms.set_constraint(FixAtoms(indices=indices))
+        constrained_atoms_list.append(atoms)
+    return constrained_atoms_list
+
+
+def index_by_height(atoms: Atoms, height_cutoff: float, below: bool) -> list[int]:
+    if height_cutoff is None:
+        return []
+    positions = atoms.get_positions()
+    z_coords = positions[:, 2]
+    if below:
+        indices = [i for i, z in enumerate(z_coords) if z <= height_cutoff]
+    else:
+        indices = [i for i, z in enumerate(z_coords) if z >= height_cutoff]
+    return indices
+
+
 def main() -> None:
     cfg = load_config("config.toml")
 
@@ -117,9 +153,12 @@ def main() -> None:
     output_path = uma_cfg.get("output", None)
     mlip_path = uma_cfg.get("mlip_path", None)
     device = uma_cfg.get("device", "cuda")
+    height_cutoff = uma_cfg.get("height_cutoff", None)
 
-    config = {"src": ensure_ase_db(src_path, dev_run)}
-    dataset = AseDBDataset(config=config)
+    atoms_list = [read(src_path, index=0)] if dev_run else read(src_path, index=":")
+    index_fn = partial(index_by_height, height_cutoff=height_cutoff, below=True)
+    atoms_list = constrain_atoms(atoms_list, index_fn=index_fn)
+    dataset = InMemoryAtomsDataset(atoms_list)
     predictor = load_predict_unit(
         path=mlip_path,
         device=device,
